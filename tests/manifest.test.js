@@ -26,3 +26,7 @@ test("web app runs as the owner and opens without a Google sign-in (token checke
 test("uses no advanced services or libraries", () => {
   assert.equal(manifest.dependencies, undefined);
 });
+
+test("logs and dates use the owner's time zone, Cambodia (phase 3 decision)", () => {
+  assert.equal(manifest.timeZone, "Asia/Phnom_Penh");
+});

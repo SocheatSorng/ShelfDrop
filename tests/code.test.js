@@ -466,6 +466,30 @@ test("at most 15 books a day; the count starts again the next day and old days a
   assert.equal(tomorrow.page.title, "Sent");
 });
 
+test("the daily limit starts again at midnight in Cambodia (17:00 UTC), not at UTC midnight", () => {
+  const state = memoryState();
+  const beforeMidnight = Date.UTC(2026, 10, 24, 16, 59, 0);
+  for (let i = 0; i < 15; i++) {
+    state.remove("_sent:vol-1-epub-id");
+    const { page } = run(
+      "POST",
+      { t: TOKEN, f: "vol-1-epub-id" },
+      { state, now: () => beforeMidnight + i },
+    );
+    assert.equal(page.title, "Sent", "send " + (i + 1));
+  }
+  const full = run(
+    "POST",
+    { t: TOKEN, f: "vol-2-epub-id" },
+    { state, now: () => beforeMidnight + 20 },
+  );
+  assert.equal(full.page.title, "Not sent");
+  const midnight = Date.UTC(2026, 10, 24, 17, 0, 0);
+  const next = run("POST", { t: TOKEN, f: "vol-2-epub-id" }, { state, now: () => midnight });
+  assert.equal(next.page.title, "Sent");
+  assert.equal(state.get("_count:2026-11-25"), "1");
+});
+
 test("a failed send counts for nothing (no cooldown, no daily count)", () => {
   const state = memoryState();
   run(
