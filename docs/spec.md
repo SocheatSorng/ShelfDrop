@@ -160,7 +160,6 @@ function compareNatural(a, b) {
 ## Open questions
 
 - Phase 1 decisions: see [docs/phase1-plan.md](phase1-plan.md).
-- Phase 3: the daily send cap (suggest 20 a day) and whether a "sent" mark can be cleared.
 
 ## Results
 
@@ -176,3 +175,7 @@ function compareNatural(a, b) {
   security reviews with no must-fix items. On the Kindle: T0, T1–T3, T2b, T5, T6 passed; script
   time 0.3–0.6 s for cached pages (was 0.5–2 s). Details:
   [phase2-plan.md](phase2-plan.md#owners-tests-on-the-kindle-2026-11-24).
+- **Phase 3 (hardening), 2026-11-24: passed.** "✓ sent <date>" marks on rows and the confirm page,
+  the daily limit (15) in Cambodia time, tests that no page leaks the address, IDs or Google's
+  errors, a token change recipe, a UI pass and a security review (SF-1..SF-3 fixed). On the Kindle:
+  T0–T4 passed. Details: [phase3-plan.md](phase3-plan.md#owners-tests-on-the-kindle-2026-11-24).

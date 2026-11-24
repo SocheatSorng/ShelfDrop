@@ -96,3 +96,16 @@ Accepted, in the guide: **N-1** deploying before 07:00 Cambodia time resets the 
 (deploy after 07:00); **N-2** a leaked link also shows which books were sent (another reason to
 change the token). Notes: **N-3** every page reads all properties (fine at this size); **N-4** a
 future `_sent:` time skips the cooldown (pre-existing; the cap still holds).
+
+## Owner's tests on the Kindle (2026-11-24)
+
+| #   | Result                                                                                                                                                                                                                                                                                               |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T0  | Pass (unchanged since phase 2; the old token shows "Not found" in T3).                                                                                                                                                                                                                               |
+| T1  | Pass. A newly sent volume shows "✓ sent 24 Nov" on its row and confirm page. The tick renders as ✓ on the Kindle (not a box), bold and on one line.                                                                                                                                                  |
+| T2  | Pass. A second send within 10 minutes: "Not sent", "sent a few minutes ago".                                                                                                                                                                                                                         |
+| T3  | Pass. After the token change the old link shows "Not found"; `sendLinkToKindle` delivered a new link that opens the bookshelf. The owner changed one letter of the token; a token one letter from a known one can be guessed in a few thousand tries, so the guide now insists on a whole new token. |
+| T4  | Pass. checkSetup: "Script Properties look right", 2 series, 8 loose books, "Sent marks: 5 books ... about 1 KB of 500 KB"; no address, token or file IDs. Last error is Gmail's 25 MB refusal from before the deploy.                                                                                |
+
+Seen on the shelf: the same file names twice (two copies in the shelf folders, each its own file and
+mark). Not a bug.

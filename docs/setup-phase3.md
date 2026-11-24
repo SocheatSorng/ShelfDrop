@@ -67,7 +67,9 @@ working at once. Anyone with the link can send books to your Kindle and, since p
 which books you sent and when. Change it when the link was shared or forwarded, the Kindle is lost,
 sold or lent, or you change who is on Amazon's approved sender list.
 
-1. In PowerShell, in your ShelfDrop folder, copy a new token to the clipboard without showing it:
+1. In PowerShell, in your ShelfDrop folder, copy a **whole new** token to the clipboard without
+   showing it. Never just change a letter or two of the old one: a token close to a known one can be
+   guessed in a few thousand tries.
 
    ```powershell
    npm run --silent token | clip
@@ -78,7 +80,8 @@ sold or lent, or you change who is on Amazon's approved sender list.
    old link shows "Not found".
 3. Remove the old link from everywhere it is kept, because it still holds the old token:
    - **Amazon:** amazon.com → **Manage Your Content and Devices** → **Content** → **Docs** →
-     the **ShelfDrop link** document → **Delete** (this removes it from the Kindle too).
+     the **ShelfDrop link** document → **Delete**. Deleting it on the Kindle alone may leave it in
+     your Amazon library.
    - **ShelfDrop Gmail:** **Sent** → the mail named **ShelfDrop link** → **Delete**, then empty it
      from **Trash**.
 4. Editor → pick **sendLinkToKindle** → **Run**. In a minute or two a new **ShelfDrop link**
