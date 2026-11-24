@@ -22,6 +22,10 @@ var PAGE_CSS = [
   "ul{list-style:none;margin:0;padding:0;border-top:2px solid #000}",
   "li{position:relative;border-bottom:2px solid #000}",
   ".book{display:flex;flex-direction:column;justify-content:center;min-height:3.5rem;padding:.65rem 2.25rem .65rem .25rem;color:#000;text-decoration:none}",
+  // Rows that open another list (a main folder, a series) are bold, and a gap splits them from the
+  // book rows below them, so in one merged list a reader can tell "opens a page" from "sends a book".
+  ".dir .book{font-weight:bold}",
+  ".dir+li:not(.dir){margin-top:1rem;border-top:2px solid #000}",
   "a.book:after{content:'\\203A';position:absolute;right:.5rem;top:50%;margin-top:-1rem;font-size:2rem;line-height:2rem;font-weight:bold}",
   ".off{color:#333}",
   ".off .meta{font-style:italic}",
@@ -165,7 +169,7 @@ function truncatedNote(ctx) {
 // A list row linking to another page of the app.
 function linkItem(ctx, params, name) {
   return (
-    '<li><a class="book" target="_top" href="' +
+    '<li class="dir"><a class="book" target="_top" href="' +
     escapeHtml(appLink(ctx.appUrl, { t: ctx.token, ...params })) +
     '">' +
     escapeHtml(name) +

@@ -327,3 +327,13 @@ test("pages: a volume-folder book shows its folder name, with the file name in t
   const [plainBook] = app.listBooks([file("Tales 1.epub")], LIMIT);
   assert.ok(!seriesPage([plainBook]).html.includes("Tales 1.epub &middot;"));
 });
+
+// Phase 5 UI pass: in one list, rows that open a page (folders, series) are marked apart from books.
+test("pages: folder and series rows are marked as lists; book rows are not", () => {
+  const loose = app.listBooks([file("Loose One.epub")], LIMIT);
+  const { html } = shelfPage({ loose });
+  assert.ok(html.includes('<li class="dir"><a class="book" target="_top" href="' + URL));
+  assert.equal(html.split('<li class="dir">').length - 1, 1);
+  assert.ok(/<li><a class="book"[^>]*f=id-LooseOneepub/.test(html));
+  assert.equal(foldersPage().html.split('<li class="dir">').length - 1, 2);
+});

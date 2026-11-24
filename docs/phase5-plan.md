@@ -55,3 +55,20 @@ in `FOLDER_ID`) by its own name.
 
 Tasks 1–5 done: 150 tests (model, pages, requests, leak sweeps over the new pages and an `m` set to a
 folder ID). `checkSetup` now logs `Shelf: N series, M loose books in F folders.`
+
+### UI pass (2026-11-24)
+
+`kindle-ui-designer` at 618 x 647 (also tall, 150% text, greyscale, inverted for dark mode) with fake
+data. In one list, series rows looked like book rows. Rows that open a page (folders, series) are now
+**bold**, and a 1rem gap with a double line separates them from the book rows. Long names wrap with the
+arrow centred; names are escaped. For the owner to judge on the Kindle: whether the gap reads as a new
+group, and whether a page of bold folder names is too heavy.
+
+### Security review (2026-11-24)
+
+`agent-skills:security-auditor`, read-only. No must-fix items: `m` maps only to a place in
+`FOLDER_ID`, the token still comes first, no `FOLDER_ID` value reaches a page. Fixed, with tests:
+the leak sweeps now cover the single-folder pages; a series moved to another main folder within the
+cache's 30 minutes stops showing under the old one (the fresh check requires that main folder); `s`
+and `f` win over `m`. For the owner's test: a folder named like `<b>x</b> & "q"` shows literally in
+the tab and the title. Notes left: a duplicate `FOLDER_ID` entry is harmless (first place wins).
