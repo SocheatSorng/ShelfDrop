@@ -43,3 +43,9 @@ test("the sent date: day and month this year, with the year otherwise, in Cambod
   // New Year's Eve 18:00 UTC is 1 January in Cambodia: a different year from "now".
   assert.equal(app.formatSentDate(at(2026, 12, 31, 18), at(2026, 12, 31, 12)), "1 Jan 2027");
 });
+
+// Security review SF-1: a huge time made toISOString throw, breaking every page with a mark.
+test("sent times too large for a date are skipped, not shown", () => {
+  const sent = app.sentTimes({ "_sent:huge-file-id1": "1e300", "_sent:far-file-id01": "3e14" });
+  assert.equal(sent.size, 0);
+});

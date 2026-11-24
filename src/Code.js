@@ -122,7 +122,12 @@ function handleVerified_(request, services, settings, props) {
       }
       return { sent: false, text: sendFailureText(check.book.size, quotaLeft) };
     }
-    recordSend(services.state, file.id, now, limits.count);
+    try {
+      recordSend(services.state, file.id, now, limits.count);
+    } catch (error) {
+      // The book is on its way; only its mark (or, at worst, the count) is missing (review SF-2).
+      noteFailure_(services, settings, "sent, but couldn't record the send", error);
+    }
     return { sent: true };
   });
   if (!outcome) return renderMessage(ctx, "Not sent", limitText("busy"));
@@ -381,6 +386,21 @@ function checkSetup() {
     );
   }
   console.log("E-mails left today: " + services.remainingQuota());
+  const usage = propertiesUsage(services.properties());
+  console.log(
+    "Sent marks: " +
+      usage.marks +
+      " books. Script Properties use about " +
+      Math.ceil(usage.bytes / 1024) +
+      " KB of " +
+      PROPERTIES_MAX_BYTES / 1024 +
+      " KB.",
+  );
+  if (usage.nearlyFull) {
+    console.log(
+      "Script Properties are nearly full: ask Claude how to remove old _sent: marks safely.",
+    );
+  }
   const lastError = services.state.get("_lastError");
   console.log("Last error: " + (lastError || "none"));
   console.log("Last folder error: " + (services.state.get("_lastFolderError") || "none"));

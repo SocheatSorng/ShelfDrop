@@ -1074,7 +1074,7 @@ test("safe messages: no page shows the address, folder IDs, IDs in text or Googl
   const send = { t: TOKEN, f: "vol-1-epub-id" };
   const cases = [
     ["no token", "GET", {}, {}],
-    ["setup needed", "GET", { t: TOKEN }, { properties: () => ({ ACCESS_TOKEN: TOKEN }) }],
+    ["setup needed", "GET", { t: TOKEN }, { properties: () => ({ ...PROPS, WEB_APP_URL: "bad" }) }],
     ["unknown series", "GET", { t: TOKEN, s: "ser-unknown-01" }, {}],
     ["series off the shelf", "GET", { t: TOKEN, s: "not-shelf-sub1" }, {}],
     ["file not on the shelf", "GET", { t: TOKEN, f: "private-doc-id" }, {}],
@@ -1105,4 +1105,52 @@ test("safe messages: no page shows the address, folder IDs, IDs in text or Googl
     }
     assert.ok(!page.windowTitle || !page.windowTitle.includes(TOKEN), name + ": title");
   }
+});
+
+// Security review SF-1, end to end: a corrupt mark doesn't break the shelf page.
+test("a corrupt _sent: value leaves the page working, with no mark", () => {
+  const state = memoryState({ "_sent:vol-1-epub-id": "1e300" });
+  const { page } = run("GET", { t: TOKEN }, { state, properties: propsWith(state) });
+  assert.equal(page.title, "Bookshelf");
+  assert.deepEqual(marks(page.html), []);
+});
+
+// Security review SF-2: with Script Properties full, a new _sent: key can't be written. The daily
+// count must still go up (so the cap holds), and the reader is told the book was sent.
+test("full Script Properties: the count still rises, the cap still holds, the send says Sent", () => {
+  const state = memoryState();
+  const set = state.set;
+  state.set = (key, value) => {
+    if (key.startsWith("_sent:") && state.get(key) === null) throw new Error("quota " + KINDLE);
+    return set(key, value);
+  };
+  for (let i = 0; i < 15; i++) {
+    const { page, calls } = run(
+      "POST",
+      { t: TOKEN, f: "vol-1-epub-id" },
+      { state, now: () => NOW + i },
+    );
+    assert.equal(page.title, "Sent", "send " + (i + 1));
+    assert.equal(calls.sent.length, 1);
+    assert.ok(!calls.logs.join(" ").includes(KINDLE));
+  }
+  assert.equal(state.get("_count:2026-11-24"), "15");
+  const sixteenth = run("POST", { t: TOKEN, f: "vol-2-epub-id" }, { state, now: () => NOW + 20 });
+  assert.equal(sixteenth.page.title, "Not sent");
+  assert.ok(state.get("_lastError").includes("couldn't record"));
+});
+
+test("checkSetup reports how much of Script Properties the sent marks use", () => {
+  const props = { ...PROPS };
+  for (let i = 0; i < 9000; i++)
+    props["_sent:file-id-" + String(i).padStart(20, "0")] = String(NOW);
+  const { globals, out } = fakeGlobals({ props });
+  loadSrc(globals).checkSetup();
+  const logs = out.logs;
+  const line = logs.find((l) => l.startsWith("Sent marks:"));
+  assert.ok(line && line.includes("9000 books"), line);
+  assert.ok(logs.some((l) => l.includes("nearly full")));
+  const small = fakeGlobals();
+  loadSrc(small.globals).checkSetup();
+  assert.ok(!small.out.logs.some((l) => l.includes("nearly full")));
 });

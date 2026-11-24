@@ -23,13 +23,17 @@ function countKey(now) {
   return "_count:" + localDay(now);
 }
 
+// Later than this can't be a real send time, and much later makes toISOString throw (review SF-1).
+var LATEST_SENT_MS = Date.UTC(9000, 0, 1);
+
 // When each file was last sent (ms), by file ID, from all Script Properties. Bad values are skipped.
 function sentTimes(props) {
   const times = new Map();
   for (const [key, value] of Object.entries(props || {})) {
     if (!key.startsWith("_sent:")) continue;
     const ms = Number(value);
-    if (Number.isFinite(ms) && ms > 0) times.set(key.slice("_sent:".length), ms);
+    if (Number.isFinite(ms) && ms > 0 && ms < LATEST_SENT_MS)
+      times.set(key.slice("_sent:".length), ms);
   }
   return times;
 }
@@ -55,13 +59,30 @@ function checkSendLimits(state, fileId, now) {
 }
 
 // state: { set(key, value), keys() -> string[], remove(key) }
+// The daily count is written first: it replaces a key that (nearly) always exists, so it still
+// works when Script Properties are full and only a new _sent: key would fail (review SF-2).
+// That last write may throw; the caller notes it.
 function recordSend(state, fileId, now, count) {
   const today = countKey(now);
-  state.set(sentKey(fileId), String(now));
   state.set(today, String(count + 1));
   for (const key of state.keys()) {
     if (key.startsWith("_count:") && key !== today) state.remove(key);
   }
+  state.set(sentKey(fileId), String(now));
+}
+
+// Script Properties hold at most 500 KB. How much the sent marks and everything else use.
+var PROPERTIES_MAX_BYTES = 500 * 1024;
+var PROPERTIES_WARN_BYTES = 400 * 1024;
+
+function propertiesUsage(props) {
+  let bytes = 0;
+  let marks = 0;
+  for (const [key, value] of Object.entries(props || {})) {
+    bytes += key.length + String(value).length;
+    if (key.startsWith("_sent:")) marks++;
+  }
+  return { bytes, marks, nearlyFull: bytes > PROPERTIES_WARN_BYTES };
 }
 
 function limitText(reason) {
