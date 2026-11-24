@@ -12,6 +12,17 @@ function compareNatural(a, b) {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
 }
 
+// A real book file: EPUB/PDF by name, not empty, and not a Google Doc, Sheet, shortcut or folder
+// that merely has a ".pdf" name (Drive would convert a Doc to PDF on download, and its size is 0,
+// which would get past the size limit).
+function isBookFile(file) {
+  return (
+    Boolean(bookKind(file.name)) &&
+    file.size > 0 &&
+    !String(file.mimeType || "").startsWith("application/vnd.google-apps.")
+  );
+}
+
 function toBook(file, maxBytes) {
   return {
     id: file.id,
@@ -25,7 +36,7 @@ function toBook(file, maxBytes) {
 // The books in a folder listing: EPUB/PDF only, not trashed, in natural order.
 function listBooks(files, maxBytes) {
   return (files || [])
-    .filter((file) => !file.trashed && bookKind(file.name))
+    .filter((file) => !file.trashed && isBookFile(file))
     .map((file) => toBook(file, maxBytes))
     .sort((a, b) => compareNatural(a.name, b.name));
 }
@@ -36,7 +47,7 @@ function checkSendable(file, folderId, maxBytes) {
   if (!file || file.trashed || !(file.parentIds || []).includes(folderId)) {
     return { ok: false, reason: "not-found" };
   }
-  if (!bookKind(file.name)) return { ok: false, reason: "not-a-book" };
+  if (!isBookFile(file)) return { ok: false, reason: "not-a-book" };
   if (!(file.size <= maxBytes)) return { ok: false, reason: "too-big" };
   return { ok: true, book: toBook(file, maxBytes) };
 }

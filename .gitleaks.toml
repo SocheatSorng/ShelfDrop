@@ -1,0 +1,27 @@
+# gitleaks: the default rules plus ShelfDrop's own secrets. Picked up automatically by the
+# pre-commit hook and by the CI scan (gitleaks looks for .gitleaks.toml in the repo root).
+# tests/repo-hygiene.test.js checks the same patterns on every test run.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "shelfdrop-token-in-link"
+description = "ShelfDrop access token in a web app link (?t=...)"
+regex = '''[?&]t=([A-Za-z0-9_-]{32,})'''
+secretGroup = 1
+[rules.allowlist]
+regexes = ['''^test-token''']
+
+[[rules]]
+id = "shelfdrop-access-token"
+description = "ShelfDrop ACCESS_TOKEN value"
+regex = '''ACCESS_TOKEN["'`]?\s*[:=]\s*["'`]?([A-Za-z0-9_-]{32,})'''
+secretGroup = 1
+[rules.allowlist]
+regexes = ['''^test-token''']
+
+[[rules]]
+id = "shelfdrop-deployment-id"
+description = "Apps Script web app deployment ID"
+regex = '''AKfy[A-Za-z0-9_-]{40,}'''

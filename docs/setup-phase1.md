@@ -79,6 +79,8 @@ In PowerShell, in the ShelfDrop folder:
    ```
 
    (This copies a new random token to the clipboard without showing it.) **Save script properties.**
+   Then clear it from Windows' clipboard history: press **Win+V** and delete the entry (or check
+   that clipboard sync is off under Settings → System → Clipboard).
 
 6. **Authorise (experiment E8).** In the editor open `Code.gs`, pick **checkSetup** in the function
    menu at the top, click **Run**, then **Review permissions** → the ShelfDrop account. Google shows
@@ -130,4 +132,16 @@ If a book never arrives, look in the ShelfDrop Gmail inbox for a message from Am
 ## Afterwards
 
 Tell Claude the results. Leave the web app running for now; it only sends books from the test
-folder to your own Kindle, and only with the token.
+folder to your own Kindle, only with the token, and at most 15 a day (the same book at most once
+every 10 minutes).
+
+Good to know:
+
+- ShelfDrop keeps its counters in Script Properties as entries starting with `_sent:` and
+  `_count:`. Leave them; they are not settings.
+- If the link ever leaks: put a new `ACCESS_TOKEN` in Script Properties (the old link stops
+  working at once), delete the old **ShelfDrop link** document from your Amazon library and the
+  sent mail in the ShelfDrop Gmail, then run **sendLinkToKindle** again.
+- If `.deployment.json` is ever lost, `npm run deploy` makes a second web app URL and the old one
+  stays live. List them with `npm run clasp -- deployments` and remove the old one with
+  `npm run clasp -- undeploy <deploymentId>`.

@@ -127,6 +127,12 @@ function renderMessage(ctx, title, text) {
   return page(title, "<p>" + escapeHtml(text) + "</p>" + backLink(ctx));
 }
 
+// Shown when something unexpected failed after the token was checked. Links nowhere, because
+// even the app's own URL may be what failed.
+function renderError() {
+  return page("Something went wrong", "<p>Try again in a few minutes.</p>");
+}
+
 // Shown for a missing or wrong token: no links, no names, nothing about the app.
 function renderNotFound() {
   return page("Not found", "<p>This page doesn't exist.</p>");

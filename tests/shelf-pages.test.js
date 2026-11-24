@@ -7,11 +7,16 @@ const MB = 1024 * 1024;
 const LIMIT = 25 * MB;
 const FOLDER = "folder-test-0001";
 
+function mimeOf(name) {
+  return name.endsWith(".pdf") ? "application/pdf" : "application/epub+zip";
+}
+
 function file(name, size = MB, extra = {}) {
   return {
     id: "id-" + name.replace(/\W/g, ""),
     name,
     size,
+    mimeType: mimeOf(name),
     trashed: false,
     parentIds: [FOLDER],
     ...extra,
@@ -157,4 +162,26 @@ test("pages: the empty shelf and setup pages read sensibly", () => {
   assert.ok(app.renderList({ ...ctx, books: [] }).html.includes("No EPUB or PDF books"));
   const { html } = app.renderSetupNeeded(["KINDLE_EMAIL"]);
   assert.ok(html.includes("KINDLE_EMAIL"));
+});
+
+// Security review S3: Google Docs, shortcuts and empty files named ".pdf" are not books.
+test("shelf: Google-native files and empty files are never books, whatever their name", () => {
+  const fakes = [
+    file("Notes.pdf", 0, { mimeType: "application/vnd.google-apps.document" }),
+    file("Link.pdf", 1, { mimeType: "application/vnd.google-apps.shortcut" }),
+    file("Folder.epub", 1, { mimeType: "application/vnd.google-apps.folder" }),
+    file("Empty.epub", 0),
+  ];
+  assert.deepEqual(plain(app.listBooks(fakes, LIMIT)), []);
+  for (const f of fakes) {
+    assert.deepEqual(plain(app.checkSendable(f, FOLDER, LIMIT)), {
+      ok: false,
+      reason: "not-a-book",
+    });
+  }
+});
+
+test("shelf: an EPUB uploaded with a generic type still counts", () => {
+  const f = file("Odd upload.epub", MB, { mimeType: "application/octet-stream" });
+  assert.equal(app.checkSendable(f, FOLDER, LIMIT).ok, true);
 });

@@ -29,10 +29,17 @@ function buildLinkMail(kindleEmail, link, makeBlob) {
 }
 
 // Replaces every secret in a text, so logs never hold the Kindle address or the token.
+// Case-insensitive, because Gmail may print the address in a different case.
 function redact(text, secrets) {
   let out = String(text === undefined || text === null ? "" : text);
   for (const secret of secrets) {
-    if (secret) out = out.split(secret).join("[hidden]");
+    if (!secret) continue;
+    const needle = String(secret).toLowerCase();
+    let at = out.toLowerCase().indexOf(needle);
+    while (at !== -1) {
+      out = out.slice(0, at) + "[hidden]" + out.slice(at + needle.length);
+      at = out.toLowerCase().indexOf(needle, at + "[hidden]".length);
+    }
   }
   return out;
 }

@@ -20,8 +20,21 @@ const FILES = {
   "private-doc-id": { name: "Private.pdf", size: MB, parentIds: ["other-folder-01"] },
 };
 
+// An in-memory stand-in for Script Properties used as state.
+function memoryState(initial = {}) {
+  const map = new Map(Object.entries(initial));
+  return {
+    get: (key) => (map.has(key) ? map.get(key) : null),
+    set: (key, value) => map.set(key, value),
+    keys: () => [...map.keys()],
+    remove: (key) => map.delete(key),
+  };
+}
+
+const NOW = Date.UTC(2026, 10, 24, 12, 0, 0);
+
 function fakeServices(overrides = {}) {
-  const calls = { listFolder: 0, getFile: 0, sent: [], logs: [] };
+  const calls = { listFolder: 0, getFile: 0, sent: [], logs: [], locks: 0 };
   const services = {
     properties: () => ({ ...PROPS }),
     appUrl: () => URL,
@@ -40,6 +53,12 @@ function fakeServices(overrides = {}) {
     sendMail: (message) => calls.sent.push(message),
     remainingQuota: () => 100,
     log: (text) => calls.logs.push(text),
+    now: () => NOW,
+    withLock: (fn) => {
+      calls.locks++;
+      return fn();
+    },
+    state: memoryState(),
     ...overrides,
   };
   return { services, calls };
@@ -180,8 +199,16 @@ test("the diag page needs the token too", () => {
 });
 
 // The real entry points, with fake Apps Script services in the global scope.
-function fakeGlobals({ props = PROPS, url = URL } = {}) {
-  const out = { html: null, title: null, meta: [], sent: [], logs: [] };
+function fakeGlobals({ props = PROPS, url = URL, lockFree = true } = {}) {
+  const out = {
+    html: null,
+    title: null,
+    meta: [],
+    sent: [],
+    logs: [],
+    state: new Map(),
+    locks: [],
+  };
   const htmlOutput = {
     setTitle(title) {
       out.title = title;
@@ -201,6 +228,7 @@ function fakeGlobals({ props = PROPS, url = URL } = {}) {
     getName: () => f.name,
     getSize: () => f.size,
     isTrashed: () => false,
+    getMimeType: () => (f.name.endsWith(".pdf") ? "application/pdf" : "application/epub+zip"),
     getParents: () => iterator(f.parentIds.map((pid) => ({ getId: () => pid }))),
     getBlob: () => ({ blobOf: id }),
   });
@@ -212,7 +240,24 @@ function fakeGlobals({ props = PROPS, url = URL } = {}) {
         return htmlOutput;
       },
     },
-    PropertiesService: { getScriptProperties: () => ({ getProperties: () => ({ ...props }) }) },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperties: () => ({ ...props, ...Object.fromEntries(out.state) }),
+        getProperty: (key) => (out.state.has(key) ? out.state.get(key) : null),
+        setProperty: (key, value) => out.state.set(key, value),
+        getKeys: () => [...Object.keys(props), ...out.state.keys()],
+        deleteProperty: (key) => out.state.delete(key),
+      }),
+    },
+    LockService: {
+      getScriptLock: () => ({
+        tryLock: () => {
+          out.locks.push("taken");
+          return lockFree;
+        },
+        releaseLock: () => out.locks.push("released"),
+      }),
+    },
     ScriptApp: { getService: () => ({ getUrl: () => url }) },
     DriveApp: {
       getFolderById: (id) => ({
@@ -287,4 +332,132 @@ test("sendLinkToKindle refuses until the web app is deployed (/exec URL)", () =>
     assert.throws(() => loadSrc(globals).sendLinkToKindle(), /Deploy the web app first/);
     assert.equal(out.sent.length, 0);
   }
+});
+
+// Security review S1: limits on sending.
+test("the same book isn't sent twice within 10 minutes, but can be after", () => {
+  const state = memoryState();
+  const at = (now) => ({ state, now: () => now });
+  const first = run("POST", { t: TOKEN, f: "vol-1-epub-id" }, at(NOW));
+  assert.equal(first.page.title, "Sent");
+  const again = run("POST", { t: TOKEN, f: "vol-1-epub-id" }, at(NOW + 9 * 60 * 1000));
+  assert.equal(again.page.title, "Not sent");
+  assert.ok(again.page.html.includes("a few minutes ago"));
+  assert.equal(again.calls.sent.length, 0);
+  const other = run("POST", { t: TOKEN, f: "vol-2-epub-id" }, at(NOW + 9 * 60 * 1000));
+  assert.equal(other.page.title, "Sent");
+  const later = run("POST", { t: TOKEN, f: "vol-1-epub-id" }, at(NOW + 10 * 60 * 1000));
+  assert.equal(later.page.title, "Sent");
+});
+
+test("at most 15 books a day; the count starts again the next day and old days are removed", () => {
+  const state = memoryState({ "_count:2026-11-23": "7" });
+  const day = 24 * 60 * 60 * 1000;
+  for (let i = 0; i < 15; i++) {
+    state.remove("_sent:vol-1-epub-id"); // send the same file again without waiting
+    const { page } = run("POST", { t: TOKEN, f: "vol-1-epub-id" }, { state, now: () => NOW + i });
+    assert.equal(page.title, "Sent", "send " + (i + 1));
+  }
+  state.remove("_sent:vol-1-epub-id");
+  const sixteenth = run("POST", { t: TOKEN, f: "vol-1-epub-id" }, { state, now: () => NOW + 20 });
+  assert.equal(sixteenth.page.title, "Not sent");
+  assert.ok(sixteenth.page.html.includes("limit of 15 books"));
+  assert.equal(sixteenth.calls.sent.length, 0);
+  assert.equal(state.get("_count:2026-11-24"), "15");
+  assert.equal(state.get("_count:2026-11-23"), null);
+  const tomorrow = run("POST", { t: TOKEN, f: "vol-2-epub-id" }, { state, now: () => NOW + day });
+  assert.equal(tomorrow.page.title, "Sent");
+});
+
+test("a failed send counts for nothing (no cooldown, no daily count)", () => {
+  const state = memoryState();
+  run(
+    "POST",
+    { t: TOKEN, f: "vol-1-epub-id" },
+    {
+      state,
+      sendMail: () => {
+        throw new Error("Service unavailable");
+      },
+    },
+  );
+  assert.deepEqual(state.keys(), []);
+});
+
+test("sending happens inside the lock; a busy lock sends nothing; GET never locks", () => {
+  const { calls } = run("POST", { t: TOKEN, f: "vol-1-epub-id" });
+  assert.equal(calls.locks, 1);
+  const busy = run("POST", { t: TOKEN, f: "vol-1-epub-id" }, { withLock: () => null });
+  assert.equal(busy.page.title, "Not sent");
+  assert.ok(busy.page.html.includes("being sent right now"));
+  assert.equal(busy.calls.sent.length, 0);
+  assert.equal(run("GET", { t: TOKEN, f: "vol-1-epub-id" }).calls.locks, 0);
+});
+
+test("the real script lock is always released, and a busy one sends nothing", () => {
+  const { globals, out } = fakeGlobals();
+  loadSrc(globals).doPost({ parameter: { t: TOKEN, f: "vol-1-epub-id" } });
+  assert.deepEqual(out.locks, ["taken", "released"]);
+  assert.equal(out.sent.length, 1);
+  assert.ok(out.state.has("_sent:vol-1-epub-id"));
+  const busy = fakeGlobals({ lockFree: false });
+  loadSrc(busy.globals).doPost({ parameter: { t: TOKEN, f: "vol-1-epub-id" } });
+  assert.equal(busy.out.sent.length, 0);
+  assert.deepEqual(busy.out.locks, ["taken"]);
+});
+
+test("the limit state in Script Properties doesn't disturb the settings", () => {
+  const { globals, out } = fakeGlobals();
+  const ctx = loadSrc(globals);
+  ctx.doPost({ parameter: { t: TOKEN, f: "vol-1-epub-id" } });
+  ctx.doGet({ parameter: { t: TOKEN } });
+  assert.equal(out.title, "Books - ShelfDrop");
+});
+
+// Security review S2: no raw Apps Script error pages.
+test("unreadable properties: not-found page, even with the right token", () => {
+  const { page, calls } = run(
+    "GET",
+    { t: TOKEN },
+    {
+      properties: () => {
+        throw new Error("Service error: PropertiesService");
+      },
+    },
+  );
+  assert.equal(page.title, "Not found");
+  assert.deepEqual(calls.logs, ["request failed: Script Properties could not be read"]);
+});
+
+test("a failure after the token check gives a plain page and a redacted log line", () => {
+  const cases = [
+    ["listFolder", { t: TOKEN }, "Something went wrong"],
+    ["appUrl", { t: TOKEN }, "Something went wrong"],
+    ["remainingQuota", { t: TOKEN, f: "vol-1-epub-id" }, "Something went wrong"],
+    ["getBlob", { t: TOKEN, f: "vol-1-epub-id" }, "Not sent"],
+  ];
+  for (const [broken, params, title] of cases) {
+    const { page, calls } = run("POST", params, {
+      [broken]: () => {
+        throw new Error("Exception in " + broken + " for " + KINDLE.toUpperCase());
+      },
+    });
+    assert.equal(page.title, title, broken);
+    assert.ok(!page.html.includes("Exception"), broken);
+    assert.equal(calls.sent.length, 0, broken);
+    assert.ok(!calls.logs.join(" ").toLowerCase().includes(KINDLE), broken);
+  }
+});
+
+test("the error page links nowhere", () => {
+  assert.ok(!app.renderError().html.includes("<a"));
+});
+
+// Security review N7.
+test("redact hides secrets in any letter case", () => {
+  assert.equal(
+    app.redact("to YourName@Kindle.COM and yourname@kindle.com.", [KINDLE]),
+    "to [hidden] and [hidden].",
+  );
+  assert.equal(app.redact(undefined, [KINDLE]), "");
 });

@@ -18,13 +18,33 @@ function serve_(e, method) {
 }
 
 function handleRequest(request, services) {
-  const settings = readSettings(services.properties());
   const params = request.params || {};
+  let settings;
+  try {
+    settings = readSettings(services.properties());
+  } catch {
+    services.log("request failed: Script Properties could not be read");
+    return renderNotFound();
+  }
 
   // The token comes first: without it, nothing else is read and nothing about the app is shown.
   if (!tokenMatches(params.t, settings.token)) return renderNotFound();
   if (settings.problems.length) return renderSetupNeeded(settings.problems);
 
+  // Any unexpected failure (folder unshared, a Google service down) gets a plain page instead of
+  // Apps Script's error page, and a log line with the secrets hidden.
+  try {
+    return handleVerified_(request, services, settings);
+  } catch (error) {
+    services.log(
+      "request failed: " + redact(error && error.message, [settings.kindleEmail, settings.token]),
+    );
+    return renderError();
+  }
+}
+
+function handleVerified_(request, services, settings) {
+  const params = request.params || {};
   const ctx = { appUrl: services.appUrl(), token: settings.token };
 
   if (request.method === "GET" && params.diag === "1") return renderDiag(ctx);
@@ -40,17 +60,27 @@ function handleRequest(request, services) {
 
   if (request.method !== "POST") return renderConfirm({ ...ctx, book: check.book });
 
-  if (services.remainingQuota() < 1) {
-    return renderMessage(ctx, "Not sent", "Today's e-mail limit is used up. Try again tomorrow.");
-  }
-  try {
-    services.sendMail(buildBookMail(settings.kindleEmail, check.book, services.getBlob(file.id)));
-  } catch (error) {
-    services.log(
-      "send failed: " + redact(error && error.message, [settings.kindleEmail, settings.token]),
-    );
-    return renderMessage(ctx, "Not sent", sendFailureText(error));
-  }
+  // One send at a time, so two taps (or a script) can't slip past the limits together.
+  const outcome = services.withLock(() => {
+    const now = services.now();
+    const limits = checkSendLimits(services.state, file.id, now);
+    if (!limits.ok) return { sent: false, text: limitText(limits.reason) };
+    if (services.remainingQuota() < 1) {
+      return { sent: false, text: "Today's e-mail limit is used up. Try again tomorrow." };
+    }
+    try {
+      services.sendMail(buildBookMail(settings.kindleEmail, check.book, services.getBlob(file.id)));
+    } catch (error) {
+      services.log(
+        "send failed: " + redact(error && error.message, [settings.kindleEmail, settings.token]),
+      );
+      return { sent: false, text: sendFailureText(error) };
+    }
+    recordSend(services.state, file.id, now, limits.count);
+    return { sent: true };
+  });
+  if (!outcome) return renderMessage(ctx, "Not sent", limitText("busy"));
+  if (!outcome.sent) return renderMessage(ctx, "Not sent", outcome.text);
   services.log("sent file " + file.id);
   return renderSent({ ...ctx, book: check.book });
 }
@@ -82,6 +112,23 @@ function appsScriptServices_() {
     sendMail: (message) => MailApp.sendEmail(message),
     remainingQuota: () => MailApp.getRemainingDailyQuota(),
     log: (text) => console.log(text),
+    now: () => Date.now(),
+    // Runs fn while holding the script lock; returns null if the lock isn't free within 10 s.
+    withLock: (fn) => {
+      const lock = LockService.getScriptLock();
+      if (!lock.tryLock(10000)) return null;
+      try {
+        return fn();
+      } finally {
+        lock.releaseLock();
+      }
+    },
+    state: {
+      get: (key) => PropertiesService.getScriptProperties().getProperty(key),
+      set: (key, value) => PropertiesService.getScriptProperties().setProperty(key, value),
+      keys: () => PropertiesService.getScriptProperties().getKeys(),
+      remove: (key) => PropertiesService.getScriptProperties().deleteProperty(key),
+    },
   };
 }
 
@@ -93,6 +140,7 @@ function fileInfo_(file) {
     id: file.getId(),
     name: file.getName(),
     size: file.getSize(),
+    mimeType: file.getMimeType(),
     trashed: file.isTrashed(),
     parentIds,
   };

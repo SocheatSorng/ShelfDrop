@@ -86,6 +86,31 @@ Fallbacks if an experiment fails:
 - Independent check: the rendered pages were loaded in headless Edge; every link and form targets
   the top window, names stay escaped, and the diag script runs.
 
+## Security review (2026-11-24)
+
+`security-auditor`, read-only, over `main..phase-1-spike`. No must-fix items. Fixed, each with tests:
+
+- **S1, sending limits:** sends run under the script lock; the same book is not resent within
+  10 minutes; at most 15 books a day (UTC), counted in Script Properties (`_sent:`/`_count:`);
+  failed sends count for nothing.
+- **S2, no raw error pages:** unreadable settings give the not-found page; any failure after the
+  token check gives a plain page with no links and a redacted log line.
+- **S3, real files only:** Google Docs, shortcuts, folders and empty files named `.epub`/`.pdf` are
+  not books (they would be converted on download and slip past the size limit).
+- **S4, leak checks:** the hygiene test now scans every file git would commit for tokens in links,
+  `ACCESS_TOKEN` values and deployment IDs, and `.gitleaks.toml` adds the same rules to gitleaks.
+- **N7:** log redaction ignores letter case. **N2, N5:** clipboard and old-deployment tips in the
+  setup guide.
+
+Follow-ups:
+
+- **Phase 2:** remove the diag page and its link (N4); for series subfolders, check the file sits
+  in a series folder whose parent is the shelf, never trusting a series ID from the URL (N6);
+  keep loading no third-party resources (N3); confirm links use the same `/exec` URL (N5).
+- **Phase 3:** write the token rotation steps into the guide (N1, started in setup-phase1.md);
+  keep the ShelfDrop account dedicated and never give anyone edit access to the shelf (N11).
+- **Always:** review a PR before running `npm run deploy` on it (N10).
+
 ## Decisions made (2026-11-24)
 
 1. **Deploy:** clasp from the repo.
