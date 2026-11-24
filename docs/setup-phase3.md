@@ -1,5 +1,8 @@
 # Phase 3: sent marks and a fresh token (owner's steps)
 
+> **Historical:** this was the guide for one phase of development. To set ShelfDrop up, use
+> [setup.md](setup.md).
+
 About 20 minutes, plus waiting for one book to arrive. You do every sign-in yourself; Claude never
 needs your passwords. **Never paste your Kindle address, the token, or the link with `?t=` into the
 chat.** Report results in words, with photos or screenshots if something looks wrong.

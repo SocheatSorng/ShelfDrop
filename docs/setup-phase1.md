@@ -1,5 +1,8 @@
 # Phase 1: set up and run the spike (owner's steps)
 
+> **Historical:** this was the guide for one phase of development. To set ShelfDrop up, use
+> [setup.md](setup.md).
+
 About 30–45 minutes. You do every sign-in and every password yourself; Claude never needs them.
 **Never paste your Kindle address, the token, or the link with `?t=` into the chat** — Claude doesn't
 need them. Report results in words (and photos of the Kindle if something looks wrong).
