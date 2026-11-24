@@ -193,3 +193,9 @@ Accepted: volume folders aren't re-checked on the series page (up to 30 minutes 
 sendable when off the shelf; N-1); a book past the listing limits can still be sent by someone who
 knows its file ID, as it is on the shelf (N-3); the Sent page names the file, as that is the title
 in the Kindle library (N-4).
+
+## Owner's tests on the Kindle (2026-11-24, in progress)
+
+| #   | Result                                                                                    |
+| --- | ----------------------------------------------------------------------------------------- |
+| T2b | Pass. A book in a volume folder (Attack on Titan / Volume N) was sent, arrived and opens. |
