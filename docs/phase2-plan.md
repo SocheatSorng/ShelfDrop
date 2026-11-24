@@ -194,8 +194,14 @@ sendable when off the shelf; N-1); a book past the listing limits can still be s
 knows its file ID, as it is on the shelf (N-3); the Sent page names the file, as that is the title
 in the Kindle library (N-4).
 
-## Owner's tests on the Kindle (2026-11-24, in progress)
+## Owner's tests on the Kindle (2026-11-24)
 
-| #   | Result                                                                                    |
-| --- | ----------------------------------------------------------------------------------------- |
-| T2b | Pass. A book in a volume folder (Attack on Titan / Volume N) was sent, arrived and opens. |
+| #      | Result                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T0     | Pass. No token and a wrong token show only "Not found" (tab and page).                                                                                                                                                                                                                                                          |
+| T1–T3  | Pass, shown during T2b: the shelf loads, a series opens, a volume is sent and arrives.                                                                                                                                                                                                                                          |
+| T2b    | Pass. A book in a volume folder (Attack on Titan / Volume N) was sent, arrived and opens.                                                                                                                                                                                                                                       |
+| T5     | Pass. `txt.txt` isn't listed. ("Too big to send" was shown for the 36 MB PDF in phase 1, E6.)                                                                                                                                                                                                                                   |
+| T6     | Pass. A book added in Drive appeared after tapping Refresh on its series page.                                                                                                                                                                                                                                                  |
+| T7     | Script time per page (Executions): 0.30–0.58 s from the cache, 0.8–1.2 s for series pages (they re-check the series folder in Drive, review N12), 1.6–1.9 s when Drive is read. Phase 1 was 0.5–2 s for every page. The owner: "speed kinda increase a little bit"; most of each page change is still Google's frame and e-ink. |
+| T4, T8 | Not run (optional): the loose-book path is unchanged since phase 1; escaping is covered by tests.                                                                                                                                                                                                                               |

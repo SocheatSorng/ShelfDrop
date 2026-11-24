@@ -170,3 +170,9 @@ function compareNatural(a, b) {
   limit is the real size limit (36 MB refused). A page change takes about 8 s on the Kindle, of
   which the script is 0.5–2 s. Four bugs found and fixed with tests. Details:
   [phase1-plan.md](phase1-plan.md#result-2026-11-24-the-spike-proved-the-design).
+- **Phase 2 (shelf), 2026-11-24: passed.** One shelf from several Google accounts (`FOLDER_ID` is a
+  list), series and loose books, one level of volume folders inside a series (scope change at the
+  owner's request), natural order, a 30-minute listing cache with Refresh, Kindle UI pass, two
+  security reviews with no must-fix items. On the Kindle: T0, T1–T3, T2b, T5, T6 passed; script
+  time 0.3–0.6 s for cached pages (was 0.5–2 s). Details:
+  [phase2-plan.md](phase2-plan.md#owners-tests-on-the-kindle-2026-11-24).
