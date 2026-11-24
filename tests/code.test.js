@@ -1099,8 +1099,9 @@ test("safe messages: no page shows the address, folder IDs, IDs in text or Googl
     // Outside attributes (the text the reader sees) there's no token and no Drive ID at all.
     const text = html.replace(/<style>[\s\S]*?<\/style>/, "").replace(/<[^>]*>/g, " ");
     assert.ok(!text.includes(TOKEN), name + ": token in text");
-    for (const id of [...Object.keys(FILES), ...Object.keys(FOLDERS), ...Object.values(params)]) {
-      if (id !== TOKEN) assert.ok(!text.includes(id), name + ": ID " + id + " in text");
+    const ids = [...Object.keys(FILES), ...Object.keys(FOLDERS), params.s, params.f];
+    for (const id of ids.filter(Boolean)) {
+      assert.ok(!text.includes(id), name + ": ID " + id + " in text");
     }
     assert.ok(!page.windowTitle || !page.windowTitle.includes(TOKEN), name + ": title");
   }
