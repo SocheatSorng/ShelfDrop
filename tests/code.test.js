@@ -1154,3 +1154,27 @@ test("checkSetup reports how much of Script Properties the sent marks use", () =
   loadSrc(small.globals).checkSetup();
   assert.ok(!small.out.logs.some((l) => l.includes("nearly full")));
 });
+
+// Security review SF-3: the normal pages too, with marks, and the browser tab's title.
+test("safe messages: shelf, series, confirm and Sent pages, and every tab title, leak nothing", () => {
+  const state = memoryState({ "_sent:vol-1-epub-id": String(NOW - 60 * 60 * 1000) });
+  const props = propsWith(state);
+  const cases = [
+    ["shelf", "GET", { t: TOKEN }],
+    ["series", "GET", { t: TOKEN, s: "ser-tales-a01" }],
+    ["confirm", "GET", { t: TOKEN, f: "vol-1-epub-id" }],
+    ["sent", "POST", { t: TOKEN, f: "vol-2-epub-id" }],
+    ["not found", "GET", { t: "wrong" }],
+  ];
+  for (const [name, method, params] of cases) {
+    const { page } = run(method, params, { state, properties: props });
+    assert.ok(!page.html.toLowerCase().includes(KINDLE), name + ": address");
+    for (const id of [FOLDER, FOLDER_B]) assert.ok(!page.html.includes(id), name + ": shelf ID");
+    const text = page.html.replace(/<style>[\s\S]*?<\/style>/, "").replace(/<[^>]*>/g, " ");
+    assert.ok(!text.includes(TOKEN), name + ": token in text");
+    const tab = app.windowTitle_(page);
+    for (const secret of [TOKEN, KINDLE, FOLDER, FOLDER_B, ...Object.keys(FILES)]) {
+      assert.ok(!tab.includes(secret), name + ": tab title");
+    }
+  }
+});
