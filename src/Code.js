@@ -64,18 +64,23 @@ function handleVerified_(request, services, settings) {
     }
     const series = { ...found, ids };
     const listings = ids.map((id) => readListing_(services, settings, id, true, refresh));
-    // One level of volume folders inside the series (scope change 2026-11-24).
-    const volumeIds = volumeFolderIds(listings).slice(0, MAX_LISTED_FOLDERS);
-    const volumeListings = new Map(
-      volumeIds.map((id) => [id, readListing_(services, settings, id, false, refresh)]),
-    );
+    // One level of volume folders inside the series (scope change 2026-11-24), at most 40 and for
+    // about 15 s, so a cold or refreshed series page can't run for a minute (review SF-A).
+    const started = services.now();
+    const allVolumeIds = volumeFolderIds(listings);
+    const volumeListings = new Map();
+    for (const id of allVolumeIds.slice(0, MAX_VOLUME_FOLDERS)) {
+      if (services.now() - started > VOLUME_TIME_BUDGET_MS) break;
+      volumeListings.set(id, readListing_(services, settings, id, false, refresh));
+    }
+    const dropped = allVolumeIds.length > volumeListings.size ? 1 : 0; // review SF-B
     const all = listings.concat([...volumeListings.values()]);
     return renderSeries({
       ...ctx,
       series,
       seriesId: params.s,
       volumes: listVolumes(listings, settings.maxBytes, volumeListings),
-      truncated: all.filter((listing) => listing && listing.truncated).length,
+      truncated: all.filter((listing) => listing && listing.truncated).length + dropped,
     });
   }
 
@@ -140,6 +145,8 @@ var UNREADABLE_CACHE_SECONDS = 5 * 60;
 // per entry (review SF2): listings stop here and the page says some books aren't shown.
 var MAX_LISTED_FILES = 300;
 var MAX_LISTED_FOLDERS = 100;
+var MAX_VOLUME_FOLDERS = 40;
+var VOLUME_TIME_BUDGET_MS = 15 * 1000;
 
 // A folder's listing, or null if it can't be read (unshared, deleted, Drive down). The failure is
 // noted as _lastFolderError for checkSetup (apart from _lastError, so it never hides a failed

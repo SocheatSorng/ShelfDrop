@@ -176,3 +176,20 @@ out of scope).
 - Volume folders aren't re-checked against Drive on each series page (only series folders are,
   N12): a volume folder moved away can still be listed for up to 30 minutes, but it can't be sent.
 - Security review of the deeper send check before the owner's tests.
+
+### Security review of volume folders (2026-11-24)
+
+`security-auditor`, read-only, over the volume-folder commit. No must-fix items: a file is sendable
+only under exactly Shelf, Shelf/Series or Shelf/Series/Volume, every link read fresh from Drive.
+Fixed, with tests:
+
+- **SF-A:** a series page reads at most **40 volume folders** and stops after about **15 s**, so a
+  cold or refreshed page can't run for a minute.
+- **SF-B:** volume folders left out by that limit show the "Some books aren't shown" note.
+- **N-2:** tests pin the send check to at most 5 parent + 5 grandparent folder lookups, and none
+  beyond the parent when the parent is a series.
+
+Accepted: volume folders aren't re-checked on the series page (up to 30 minutes stale, never
+sendable when off the shelf; N-1); a book past the listing limits can still be sent by someone who
+knows its file ID, as it is on the shelf (N-3); the Sent page names the file, as that is the title
+in the Kindle library (N-4).

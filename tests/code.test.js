@@ -899,3 +899,87 @@ test("a book in a volume folder can be sent; its pages show the folder name and 
   assert.equal(sent.calls.sent[0].subject, "scan_005.epub");
   assert.ok(sent.calls.getFolder <= 6);
 });
+
+// Volume folder review SF-A / SF-B: a series page reads at most 40 volume folders and stops after
+// about 15 s, and says when some aren't shown.
+function bigSeriesServices(volumesEach, extra = {}) {
+  const seriesIds = ["big-series-1", "big-series-2", "big-series-3"];
+  return {
+    listFolder: (id) => {
+      if (id === FOLDER) {
+        return { folders: seriesIds.map((sid) => ({ id: sid, name: "Big" })), files: [] };
+      }
+      if (id === FOLDER_B) return { folders: [], files: [] };
+      if (seriesIds.includes(id)) {
+        return {
+          folders: Array.from({ length: volumesEach }, (_, i) => ({
+            id: id + "-vol-" + String(i).padStart(3, "0"),
+            name: "Volume " + (i + 1),
+          })),
+          files: [],
+        };
+      }
+      return { folders: [], files: [{ id: id + "-book", name: "b.epub", size: MB }] };
+    },
+    getFolder: (id) => ({ id, name: "Big", trashed: false, parentIds: [FOLDER] }),
+    ...extra,
+  };
+}
+
+test("a series page reads at most 40 volume folders and says some aren't shown", () => {
+  const { page } = run("GET", { t: TOKEN, s: "big-series-1" }, bigSeriesServices(50));
+  assert.equal(page.title, "Big");
+  const rows = page.html.match(/class="book"/g) || [];
+  assert.equal(rows.length, 40);
+  assert.ok(page.html.includes("Some books aren&#39;t shown"));
+});
+
+test("dropped volume folders are noted even when no single listing hit its limit", () => {
+  const { page } = run("GET", { t: TOKEN, s: "big-series-1" }, bigSeriesServices(20));
+  const rows = page.html.match(/class="book"/g) || [];
+  assert.equal(rows.length, 40); // 60 volume folders, 40 read
+  assert.ok(page.html.includes("Some books aren&#39;t shown"));
+  const small = run("GET", { t: TOKEN, s: "big-series-1" }, bigSeriesServices(5));
+  assert.equal((small.page.html.match(/class="book"/g) || []).length, 15);
+  assert.ok(!small.page.html.includes("aren&#39;t shown"));
+});
+
+test("a series page stops reading volume folders after about 15 seconds", () => {
+  let clock = NOW;
+  const { page } = run(
+    "GET",
+    { t: TOKEN, s: "big-series-1" },
+    bigSeriesServices(5, { now: () => (clock += 2000) }), // every Drive step "takes" 2 s
+  );
+  const rows = page.html.match(/class="book"/g) || [];
+  assert.ok(rows.length > 0 && rows.length < 15, String(rows.length));
+  assert.ok(page.html.includes("Some books aren&#39;t shown"));
+});
+
+// Review N-2: the send check's Drive lookups are bounded.
+test("the send check reads at most 5 parents and 5 grandparents, and none when it needn't", () => {
+  const parentIds = Array.from({ length: 7 }, (_, i) => "odd-parent-" + i);
+  let lookups = 0;
+  const { page, calls } = run(
+    "POST",
+    { t: TOKEN, f: "many-parents-1" },
+    {
+      getFile: (id) => ({ id, name: "x.epub", size: MB, trashed: false, parentIds }),
+      getFolder: (id) => {
+        lookups++;
+        return {
+          id,
+          name: "x",
+          trashed: false,
+          parentIds: Array.from({ length: 7 }, (_, i) => id + "-up-" + i),
+        };
+      },
+    },
+  );
+  assert.equal(page.title, "Can't send this");
+  assert.equal(calls.sent.length, 0);
+  assert.ok(lookups <= 10, String(lookups));
+  const direct = run("GET", { t: TOKEN, f: "tales-3-id-001" });
+  assert.equal(direct.page.title, "Send to Kindle?");
+  assert.equal(direct.calls.getFolder, 1);
+});
