@@ -453,3 +453,13 @@ test("pages: the icons are drawn in CSS: no images, no SVG, no script", () => {
   const html = seriesPage(app.listBooks([file("a.epub")], LIMIT)).html + foldersPage().html;
   assert.ok(!/<img|<svg|<script|url\(/.test(html));
 });
+
+// Bug found in the UI pass: on the confirm page the icon was position:static, so its drawn parts
+// (the PDF fold and lines, the book's page edge) were placed against the page, across the Back link.
+test("pages: every icon is a positioning box for the parts drawn inside it", () => {
+  const rules = app.PAGE_CSS.match(/[^}]*\.ic[^{]*\{[^}]*\}/g);
+  const pick = rules.find((rule) => rule.startsWith(".pick .ic{"));
+  assert.ok(pick, "no .pick .ic rule");
+  assert.match(pick, /position:relative/);
+  assert.ok(!/position:static/.test(app.PAGE_CSS));
+});

@@ -144,3 +144,12 @@ never read. Test: a listing cached in the old format is ignored and the names sh
 line rows, "EPUB" fits at 150% text, too-big icons grey, dark mode inverts. Changed: the book icon
 is taller (2.5 x 3rem) so it reads as a page, not a box like the folder; the confirm page's icon is
 bigger with a 14px label. For the owner: is the 12px label clear on e-ink, and the folder tab?
+
+### Refinement 3b: a book for EPUB, paper for PDF (2026-11-24)
+
+The owner asked for a **book icon for EPUB** and a **paper icon for PDF**, shapes only: the type is
+not printed and stays out of the meta line (each icon keeps "EPUB"/"PDF" as its accessible label).
+The EPUB is a narrow closed book (thick spine, cover label, page block at the bottom); the PDF a
+sheet with a folded corner and three text lines; the folder is unchanged. UI pass: found a **bug**
+on the confirm page, where the icon was `position:static` and its fold and lines were drawn against
+the page, across the Back link; fixed (`position:relative`) with a test.
