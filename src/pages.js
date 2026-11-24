@@ -28,6 +28,8 @@ var PAGE_CSS = [
   ".meta{display:block;font-size:1.125rem}",
   ".name{font-size:1.4rem;font-weight:bold}",
   ".name .meta{font-weight:normal}",
+  // The sent mark is bold so sent volumes stand out when scanning, and never splits over two lines.
+  ".sent{font-weight:bold;font-style:normal;white-space:nowrap}",
   ".end{margin:.5rem 0 0}",
   ".end a{display:inline-block;min-height:3rem;padding:.6rem 0;font-weight:bold}",
   "button{font:inherit;font-weight:bold;font-size:1.4rem;width:100%;min-height:4rem;margin:1rem 0;background:#000;color:#fff;border:3px solid #000}",
@@ -102,7 +104,8 @@ function bookMeta(book, ctx) {
     file +
     book.kind.toUpperCase() +
     " &middot; " +
-    escapeHtml(formatSize(book.size)) +
+    // A no-break space keeps "3.4 MB" on one line when a long meta line wraps.
+    escapeHtml(formatSize(book.size)).replace(" ", "&nbsp;") +
     sentMark(ctx, book)
   );
 }
@@ -110,7 +113,11 @@ function bookMeta(book, ctx) {
 // The last send, in Cambodia time (phase 3 decision). Nothing for a book never sent.
 function sentMark(ctx, book) {
   const ms = ctx && ctx.sent && ctx.sent.get(book.id);
-  return ms ? " &middot; &#10003; sent " + escapeHtml(formatSentDate(ms, ctx.now)) : "";
+  return ms
+    ? ' &middot; <span class="sent">&#10003; sent ' +
+        escapeHtml(formatSentDate(ms, ctx.now)) +
+        "</span>"
+    : "";
 }
 
 function bookItem(ctx, book) {
