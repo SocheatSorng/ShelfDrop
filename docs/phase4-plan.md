@@ -76,6 +76,8 @@ Left: the `v1.0.0` tag must be pushed with `main`, or part K's example fails for
 ## Publishing scan (2026-11-24)
 
 All 41 unpushed commits: author and committer are the noreply address; no Kindle address, token,
-deployment ID or e-mail address. One item: commit `691a46e` (phase 2 guide) still holds the owner's
-Windows path in history; the file no longer does. gitleaks is not installed on this PC; the
+deployment ID or e-mail address. One item: the phase 2 guide held the owner's Windows
+path. At the owner's request the unpushed history (82ad185 onwards) was rewritten so no commit holds it;
+each rewritten commit differs from the old one only in that file, and `main` moved to the rewritten
+phase 3 commit. gitleaks is not installed on this PC; the
 `security.yml` workflow runs it on push.
