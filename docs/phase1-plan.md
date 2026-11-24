@@ -73,6 +73,19 @@ Fallbacks if an experiment fails:
 4. **Spike books:** a separate `ShelfDrop test` folder with public-domain books (recommended: the
    spike never touches your real shelf) or a copy of a few of your own books.
 
+## Decisions made (2026-11-24)
+
+1. **Deploy:** clasp from the repo.
+2. **Sending account:** a **separate Gmail** used only for ShelfDrop. Consequences:
+   - The Apps Script project lives in that account and runs as it; clasp signs in to it (the owner
+     signs in in Brave).
+   - That Gmail address goes on Amazon's approved sender list.
+   - The bookshelf stays in the owner's main Drive and is **shared read-only (Viewer)** with the
+     separate account; the script reads it by folder ID. E8 also checks that a shared folder works
+     with the `drive.readonly` scope.
+3. **Send flow:** volume → confirm page → "Send" button (POST).
+4. **Spike books:** a separate `ShelfDrop test` folder with public-domain EPUBs and PDFs.
+
 ## Result
 
 _To be filled in after the experiments._
