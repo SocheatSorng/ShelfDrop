@@ -2,19 +2,35 @@
 // Every page returns { title, html }; Code.js wraps it in HtmlService. Every link and form targets
 // the top window, because HtmlService serves the page inside a sandboxed iframe.
 
+// Sizes are in rem so the Kindle's own text-size setting scales the page; 1rem = 16px at default.
+// Every tap target is at least 3rem (48px) tall. Black on white only, with one dark grey (#333)
+// for books too big to send, which stays dark enough on e-ink and when Kindle dark mode inverts it.
 var PAGE_CSS = [
-  "body{margin:0;background:#fff;color:#000;font-family:Georgia,serif;font-size:20px;line-height:1.4}",
-  "main{padding:12px 16px}",
-  "h1{font-size:26px;margin:0 0 12px}",
-  "h2{font-size:22px;margin:20px 0 4px}",
-  "ul{list-style:none;margin:0;padding:0}",
-  "li{border-bottom:2px solid #000}",
-  ".book{display:block;padding:14px 4px;min-height:48px;color:#000;text-decoration:none}",
-  ".off{color:#444}",
-  ".meta{display:block;font-size:16px;margin-top:4px}",
-  "button{font:inherit;font-size:22px;width:100%;min-height:64px;margin:16px 0;background:#000;color:#fff;border:3px solid #000}",
+  "*{box-sizing:border-box}",
+  "body{margin:0;background:#fff;color:#000;font-family:Georgia,serif;font-size:1.25rem;line-height:1.4}",
+  "main{padding:0 1rem 1rem}",
   "a{color:#000}",
-  ".back{display:inline-block;padding:12px 0;min-height:48px}",
+  ".bar{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;margin-bottom:.5rem}",
+  ".bar a{display:block;min-height:3rem;padding:.6rem 0;font-weight:bold}",
+  ".bar a+a{margin-left:1rem}",
+  ".head{display:flex;align-items:center;justify-content:space-between}",
+  ".head a{display:block;min-height:3rem;padding:.6rem 0 .6rem 1rem;font-weight:bold}",
+  "h1{font-size:1.6rem;line-height:1.25;margin:.5rem 0}",
+  "h2{font-size:1.4rem;margin:1.5rem 0 .25rem}",
+  "p{margin:.75rem 0}",
+  ".note{border:2px solid #000;padding:.5rem .75rem}",
+  "ul{list-style:none;margin:0;padding:0;border-top:2px solid #000}",
+  "li{position:relative;border-bottom:2px solid #000}",
+  ".book{display:flex;flex-direction:column;justify-content:center;min-height:3.5rem;padding:.65rem 2.25rem .65rem .25rem;color:#000;text-decoration:none}",
+  "a.book:after{content:'\\203A';position:absolute;right:.5rem;top:50%;margin-top:-1rem;font-size:2rem;line-height:2rem;font-weight:bold}",
+  ".off{color:#333}",
+  ".off .meta{font-style:italic}",
+  ".meta{display:block;font-size:1.125rem}",
+  ".name{font-size:1.4rem;font-weight:bold}",
+  ".name .meta{font-weight:normal}",
+  ".end{margin:.5rem 0 0}",
+  ".end a{display:inline-block;min-height:3rem;padding:.6rem 0;font-weight:bold}",
+  "button{font:inherit;font-weight:bold;font-size:1.4rem;width:100%;min-height:4rem;margin:1rem 0;background:#000;color:#fff;border:3px solid #000}",
 ].join("");
 
 function escapeHtml(value) {
@@ -34,11 +50,20 @@ function appLink(appUrl, params) {
   return appUrl + (query ? "?" + query : "");
 }
 
-function page(title, body) {
+// nav.back and nav.refresh are links (or empty). With a back link, both sit in a bar above the
+// title, so going back never needs a scroll past a long list; without one, Refresh sits beside
+// the title to save a row of the 647px Kindle screen.
+function page(title, body, nav = {}) {
+  const h1 = "<h1>" + escapeHtml(title) + "</h1>";
+  let top = h1;
+  if (nav.back) {
+    top = '<nav class="bar">' + nav.back + (nav.refresh || "") + "</nav>" + h1;
+  } else if (nav.refresh) {
+    top = '<div class="head">' + h1 + nav.refresh + "</div>";
+  }
   return {
     title,
-    html:
-      "<style>" + PAGE_CSS + "</style><main><h1>" + escapeHtml(title) + "</h1>" + body + "</main>",
+    html: "<style>" + PAGE_CSS + "</style><main>" + top + body + "</main>",
   };
 }
 
@@ -47,20 +72,20 @@ function backLink(ctx) {
   const toSeries = Boolean(ctx.seriesId);
   const params = toSeries ? { t: ctx.token, s: ctx.seriesId } : { t: ctx.token };
   return (
-    '<p><a class="back" target="_top" href="' +
+    '<a target="_top" href="' +
     escapeHtml(appLink(ctx.appUrl, params)) +
     '">&larr; Back to the ' +
     (toSeries ? "series" : "shelf") +
-    "</a></p>"
+    "</a>"
   );
 }
 
 // Reloads a listing from Drive instead of the cache, for a book that was just added.
 function refreshLink(ctx, params) {
   return (
-    '<p><a class="back" target="_top" href="' +
+    '<a target="_top" href="' +
     escapeHtml(appLink(ctx.appUrl, { t: ctx.token, ...params, r: "1" })) +
-    '">Refresh</a></p>'
+    '">Refresh</a>'
   );
 }
 
@@ -119,8 +144,7 @@ function renderShelf(ctx) {
   if (!ctx.series.length && !ctx.loose.length) {
     parts.push("<p>No series or books on the shelf yet.</p>");
   }
-  parts.push(refreshLink(ctx, {}));
-  return page("Bookshelf", parts.join(""));
+  return page("Bookshelf", parts.join(""), { refresh: refreshLink(ctx, {}) });
 }
 
 // One series: its volumes in natural order.
@@ -128,10 +152,13 @@ function renderSeries(ctx) {
   const list = ctx.volumes.length
     ? "<ul>" + ctx.volumes.map((book) => bookItem(ctx, book)).join("") + "</ul>"
     : "<p>No books yet.</p>";
-  return page(
-    ctx.series.name,
-    list + refreshLink(ctx, { s: ctx.seriesId }) + backLink({ ...ctx, seriesId: null }),
-  );
+  // A long list also gets Back at its end, for a reader who scrolled to the last volume.
+  const end =
+    ctx.volumes.length > 5 ? '<p class="end">' + backLink({ ...ctx, seriesId: null }) + "</p>" : "";
+  return page(ctx.series.name, list + end, {
+    back: backLink({ ...ctx, seriesId: null }),
+    refresh: refreshLink(ctx, { s: ctx.seriesId }),
+  });
 }
 
 // The confirm step: sending is a POST, so a browser preloading a link can never send a book.
@@ -152,8 +179,8 @@ function renderConfirm(ctx) {
       '<input type="hidden" name="f" value="' +
       escapeHtml(ctx.book.id) +
       '">' +
-      '<button type="submit">Send to Kindle</button></form>' +
-      backLink(ctx),
+      '<button type="submit">Send to Kindle</button></form>',
+    { back: backLink(ctx) },
   );
 }
 
@@ -162,13 +189,13 @@ function renderSent(ctx) {
     "Sent",
     "<p>" +
       escapeHtml(ctx.book.name) +
-      " is on its way. It should appear in your Kindle library in a minute or two.</p>" +
-      backLink(ctx),
+      " is on its way. It should appear in your Kindle library in a minute or two.</p>",
+    { back: backLink(ctx) },
   );
 }
 
 function renderMessage(ctx, title, text) {
-  return page(title, "<p>" + escapeHtml(text) + "</p>" + backLink(ctx));
+  return page(title, "<p>" + escapeHtml(text) + "</p>", { back: backLink(ctx) });
 }
 
 // Shown when something unexpected failed after the token was checked. Links nowhere, because

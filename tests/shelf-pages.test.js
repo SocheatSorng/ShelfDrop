@@ -222,6 +222,23 @@ test("pages: shelf and series pages have a Refresh link; the series page goes ba
   assert.ok(html.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the shelf</a>`));
 });
 
+// UI pass: on the Kindle a long series must not need a scroll to reach Back or Refresh.
+test("pages: Back and Refresh come before the list; a long series repeats Back at its end", () => {
+  const back = `href="${URL}?t=${TOKEN}">&larr; Back to the shelf</a>`;
+  const books = app.listBooks(
+    Array.from({ length: 13 }, (_, i) => file(`Tales Vol ${i + 1}.epub`)),
+    LIMIT,
+  );
+  const { html } = seriesPage(books);
+  const firstBook = html.indexOf("Tales Vol 1.epub");
+  assert.ok(html.indexOf(back) < firstBook);
+  assert.ok(html.indexOf('&amp;r=1">Refresh</a>') < firstBook);
+  assert.ok(html.lastIndexOf(back) > html.indexOf("Tales Vol 13.epub"));
+  assert.equal(seriesPage(books.slice(0, 2)).html.split(back).length, 2); // short: Back once
+  const shelf = shelfPage().html;
+  assert.ok(shelf.indexOf(">Refresh</a>") < shelf.indexOf("Sample Series"));
+});
+
 test("pages: confirm and sent pages go back to the book's series, or to the shelf", () => {
   const book = app.listBooks([file("a.epub")], LIMIT)[0];
   for (const render of [app.renderConfirm, app.renderSent]) {
