@@ -2,12 +2,22 @@
 //   FOLDER_ID     the Drive folder with the books
 //   KINDLE_EMAIL  the Send to Kindle address
 //   ACCESS_TOKEN  the secret in the bookmarked link
+//   WEB_APP_URL   the web app's /exec URL that `npm run deploy` prints. Asking Apps Script for
+//                 it (ScriptApp.getService().getUrl()) can return the owner-only /dev URL, which
+//                 breaks every link on the Kindle.
 //   MAX_MB        optional size limit in MB (default 25: Gmail's limit for one message)
 
 var DEFAULT_MAX_MB = 25;
 
 function isDriveId(id) {
   return typeof id === "string" && /^[A-Za-z0-9_-]{10,200}$/.test(id);
+}
+
+function isWebAppUrl(url) {
+  return (
+    typeof url === "string" &&
+    /^https:\/\/script\.google\.com\/macros\/s\/AKfy[A-Za-z0-9_-]{20,120}\/exec$/.test(url)
+  );
 }
 
 function isKindleEmail(address) {
@@ -30,6 +40,9 @@ function readSettings(props) {
   const token = String(source.ACCESS_TOKEN || "").trim();
   if (!isStrongToken(token)) problems.push("ACCESS_TOKEN");
 
+  const webAppUrl = String(source.WEB_APP_URL || "").trim();
+  if (!isWebAppUrl(webAppUrl)) problems.push("WEB_APP_URL");
+
   let maxMb = DEFAULT_MAX_MB;
   const rawMax = source.MAX_MB === undefined ? "" : String(source.MAX_MB).trim();
   if (rawMax !== "") {
@@ -44,6 +57,7 @@ function readSettings(props) {
     folderId,
     kindleEmail,
     token,
+    webAppUrl,
     maxBytes: Math.floor(maxMb * 1024 * 1024),
     problems,
   };

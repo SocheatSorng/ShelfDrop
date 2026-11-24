@@ -68,11 +68,12 @@ In PowerShell, in the ShelfDrop folder:
 5. In the Apps Script editor (reload the page): **Project Settings → Script Properties → Add script
    property**, three times:
 
-   | Property       | Value                                                      |
-   | -------------- | ---------------------------------------------------------- |
-   | `FOLDER_ID`    | the folder ID from C4                                      |
-   | `KINDLE_EMAIL` | your Kindle address from B3                                |
-   | `ACCESS_TOKEN` | a new token: run the command below, then paste with Ctrl+V |
+   | Property       | Value                                                                 |
+   | -------------- | --------------------------------------------------------------------- |
+   | `FOLDER_ID`    | the folder ID from C4                                                 |
+   | `KINDLE_EMAIL` | your Kindle address from B3                                           |
+   | `ACCESS_TOKEN` | a new token: run the command below, then paste with Ctrl+V            |
+   | `WEB_APP_URL`  | the **Web app URL** that `npm run deploy` printed (ends with `/exec`) |
 
    ```powershell
    npm run --silent token | clip
@@ -90,8 +91,9 @@ In PowerShell, in the ShelfDrop folder:
    - _Send email as you_
 
    Then **Allow**. The execution log should say "Script Properties look right", the number of books
-   found (your EPUB and PDFs, not the `.txt`), the e-mails left today, and a web app URL ending in
-   `/exec`.
+   found (your EPUB and PDFs, not the `.txt`), and the e-mails left today. If it says "Set
+   WEB_APP_URL …", fix that property: it must be the `/exec` URL from `npm run deploy`, not the
+   `/dev` one (only you can open `/dev`, so it would break every link on the Kindle).
 
 ## E. Experiments
 

@@ -82,5 +82,6 @@ These live in the Apps Script project's **Script Properties**, set by you in the
 | `FOLDER_ID`    | The Drive folder that is your bookshelf             |
 | `KINDLE_EMAIL` | Your Send to Kindle address (`yourname@kindle.com`) |
 | `ACCESS_TOKEN` | The long random secret in your bookmarked link      |
+| `WEB_APP_URL`  | The `/exec` URL that `npm run deploy` prints        |
 
 A test (`tests/repo-hygiene.test.js`) fails if a real Kindle address ever appears in the repo.

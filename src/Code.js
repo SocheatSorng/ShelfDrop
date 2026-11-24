@@ -45,7 +45,7 @@ function handleRequest(request, services) {
 
 function handleVerified_(request, services, settings) {
   const params = request.params || {};
-  const ctx = { appUrl: services.appUrl(), token: settings.token };
+  const ctx = { appUrl: settings.webAppUrl, token: settings.token };
 
   if (request.method === "GET" && params.diag === "1") return renderDiag(ctx);
 
@@ -94,7 +94,6 @@ function problemText_(reason) {
 function appsScriptServices_() {
   return {
     properties: () => PropertiesService.getScriptProperties().getProperties(),
-    appUrl: () => ScriptApp.getService().getUrl(),
     listFolder: (folderId) => {
       const files = [];
       const iterator = DriveApp.getFolderById(folderId).getFiles();
@@ -161,7 +160,11 @@ function checkSetup() {
     console.log("Books found in the folder: " + books.length);
   }
   console.log("E-mails left today: " + services.remainingQuota());
-  console.log("Web app URL: " + (services.appUrl() || "not deployed yet"));
+  if (settings.problems.includes("WEB_APP_URL")) {
+    console.log(
+      "Set WEB_APP_URL to the Web app URL that `npm run deploy` printed (it ends with /exec).",
+    );
+  }
 }
 
 // Run from the editor once the web app is deployed: e-mails a small document with your private
@@ -172,11 +175,7 @@ function sendLinkToKindle() {
   if (settings.problems.length) {
     throw new Error("Fix these Script Properties first: " + settings.problems.join(", "));
   }
-  const appUrl = services.appUrl();
-  if (!appUrl || !/\/exec$/.test(appUrl)) {
-    throw new Error("Deploy the web app first (the URL must end with /exec).");
-  }
-  const link = appLink(appUrl, { t: settings.token });
+  const link = appLink(settings.webAppUrl, { t: settings.token });
   services.sendMail(
     buildLinkMail(settings.kindleEmail, link, (text, type, name) =>
       Utilities.newBlob(text, type, name),

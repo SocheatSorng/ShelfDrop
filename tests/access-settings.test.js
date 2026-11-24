@@ -38,6 +38,7 @@ const good = {
   FOLDER_ID: "1AbCdEfGhIjKlMnOpQrStUv",
   KINDLE_EMAIL: "yourname@kindle.com",
   ACCESS_TOKEN: TOKEN,
+  WEB_APP_URL: "https://script.google.com/macros/s/" + "AKfy" + "cb" + "x".repeat(40) + "/exec",
 };
 
 test("settings: valid properties have no problems and a 25 MB default limit", () => {
@@ -51,11 +52,12 @@ test("settings: missing or invalid properties are reported by name only", () => 
   const s = plain(
     app.readSettings({ FOLDER_ID: "../x", KINDLE_EMAIL: "me@gmail.com", ACCESS_TOKEN: "abc" }),
   );
-  assert.deepEqual(s.problems, ["FOLDER_ID", "KINDLE_EMAIL", "ACCESS_TOKEN"]);
+  assert.deepEqual(s.problems, ["FOLDER_ID", "KINDLE_EMAIL", "ACCESS_TOKEN", "WEB_APP_URL"]);
   assert.deepEqual(plain(app.readSettings(undefined)).problems, [
     "FOLDER_ID",
     "KINDLE_EMAIL",
     "ACCESS_TOKEN",
+    "WEB_APP_URL",
   ]);
 });
 
@@ -71,5 +73,26 @@ test("settings: MAX_MB can change the limit, within 1 to 50", () => {
     const s = app.readSettings({ ...good, MAX_MB: bad });
     assert.deepEqual(plain(s.problems), ["MAX_MB"], bad);
     assert.equal(s.maxBytes, 25 * 1024 * 1024);
+  }
+});
+
+test("settings: WEB_APP_URL must be a script.google.com /exec deployment URL", () => {
+  const base = "https://script.google.com/macros/s/" + "AKfy" + "cb" + "x".repeat(40);
+  assert.deepEqual(
+    plain(app.readSettings({ ...good, WEB_APP_URL: " " + base + "/exec " }).problems),
+    [],
+  );
+  for (const bad of [
+    "",
+    base + "/dev",
+    base + "/exec?t=x",
+    base.replace("script.google.com", "evil.example") + "/exec",
+    "http://script.google.com/macros/s/" + "AKfy" + "cb" + "x".repeat(40) + "/exec",
+  ]) {
+    assert.deepEqual(
+      plain(app.readSettings({ ...good, WEB_APP_URL: bad }).problems),
+      ["WEB_APP_URL"],
+      bad,
+    );
   }
 });

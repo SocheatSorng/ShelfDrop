@@ -13,7 +13,6 @@ const appsScriptGlobals = {
   LockService: "readonly",
   Utilities: "readonly",
   Logger: "readonly",
-  ScriptApp: "readonly",
   console: "readonly",
 };
 

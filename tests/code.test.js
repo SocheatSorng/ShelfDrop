@@ -7,9 +7,10 @@ const MB = 1024 * 1024;
 const TOKEN = "test-token-0123456789abcdefghijklmnop";
 const KINDLE = "yourname@kindle.com";
 const FOLDER = "folder-test-0001";
-const URL = "https://script.google.com/macros/s/FAKE/exec";
+const URL = "https://script.google.com/macros/s/" + "AKfy" + "cb" + "x".repeat(40) + "/exec";
+const DEV_URL = "https://script.google.com/macros/s/" + "AKfy" + "cb" + "d".repeat(40) + "/dev";
 
-const PROPS = { FOLDER_ID: FOLDER, KINDLE_EMAIL: KINDLE, ACCESS_TOKEN: TOKEN };
+const PROPS = { FOLDER_ID: FOLDER, KINDLE_EMAIL: KINDLE, ACCESS_TOKEN: TOKEN, WEB_APP_URL: URL };
 
 const FILES = {
   "vol-1-epub-id": { name: "Sample Series Vol 1.epub", size: 2 * MB, parentIds: [FOLDER] },
@@ -37,7 +38,6 @@ function fakeServices(overrides = {}) {
   const calls = { listFolder: 0, getFile: 0, sent: [], logs: [], locks: 0 };
   const services = {
     properties: () => ({ ...PROPS }),
-    appUrl: () => URL,
     listFolder: (id) => {
       calls.listFolder++;
       return Object.entries(FILES)
@@ -199,7 +199,8 @@ test("the diag page needs the token too", () => {
 });
 
 // The real entry points, with fake Apps Script services in the global scope.
-function fakeGlobals({ props = PROPS, url = URL, lockFree = true } = {}) {
+// ScriptApp answers with the /dev URL, as it does when run from the editor: it must never be used.
+function fakeGlobals({ props = PROPS, url = DEV_URL, lockFree = true } = {}) {
   const out = {
     html: null,
     title: null,
@@ -326,10 +327,10 @@ test("sendLinkToKindle mails an HTML document with the private link", () => {
   assert.ok(!out.logs.join("\n").includes(TOKEN));
 });
 
-test("sendLinkToKindle refuses until the web app is deployed (/exec URL)", () => {
-  for (const url of [null, "https://script.google.com/macros/s/FAKE/dev"]) {
-    const { globals, out } = fakeGlobals({ url });
-    assert.throws(() => loadSrc(globals).sendLinkToKindle(), /Deploy the web app first/);
+test("sendLinkToKindle refuses without a valid WEB_APP_URL", () => {
+  for (const value of [undefined, DEV_URL]) {
+    const { globals, out } = fakeGlobals({ props: { ...PROPS, WEB_APP_URL: value } });
+    assert.throws(() => loadSrc(globals).sendLinkToKindle(), /WEB_APP_URL/);
     assert.equal(out.sent.length, 0);
   }
 });
@@ -432,7 +433,6 @@ test("unreadable properties: not-found page, even with the right token", () => {
 test("a failure after the token check gives a plain page and a redacted log line", () => {
   const cases = [
     ["listFolder", { t: TOKEN }, "Something went wrong"],
-    ["appUrl", { t: TOKEN }, "Something went wrong"],
     ["remainingQuota", { t: TOKEN, f: "vol-1-epub-id" }, "Something went wrong"],
     ["getBlob", { t: TOKEN, f: "vol-1-epub-id" }, "Not sent"],
   ];
@@ -460,4 +460,26 @@ test("redact hides secrets in any letter case", () => {
     "to [hidden] and [hidden].",
   );
   assert.equal(app.redact(undefined, [KINDLE]), "");
+});
+
+// Bug found in the owner's first checkSetup run: ScriptApp.getService().getUrl() gave the
+// owner-only /dev URL. Links must come from WEB_APP_URL, never from ScriptApp.
+test("links use WEB_APP_URL even when Apps Script reports a /dev URL", () => {
+  const { globals, out } = fakeGlobals();
+  loadSrc(globals).doGet({ parameter: { t: TOKEN } });
+  assert.ok(out.html.includes('href="' + URL + "?t=" + TOKEN + "&amp;f="));
+  assert.ok(!out.html.includes("/dev"));
+});
+
+test("a missing or /dev WEB_APP_URL shows the setup page, and checkSetup says what to do", () => {
+  const { page } = run(
+    "GET",
+    { t: TOKEN },
+    { properties: () => ({ ...PROPS, WEB_APP_URL: DEV_URL }) },
+  );
+  assert.equal(page.title, "Setup needed");
+  assert.ok(page.html.includes("WEB_APP_URL"));
+  const { globals, out } = fakeGlobals({ props: { ...PROPS, WEB_APP_URL: "" } });
+  loadSrc(globals).checkSetup();
+  assert.match(out.logs.join("\n"), /Set WEB_APP_URL .* ends with \/exec/);
 });
