@@ -1,5 +1,7 @@
 const js = require("@eslint/js");
 const security = require("eslint-plugin-security");
+const fs = require("node:fs");
+const path = require("node:path");
 const globals = require("globals");
 
 // Apps Script services the code in src/ may use. Anything else is an undefined global (lint error).
@@ -11,8 +13,24 @@ const appsScriptGlobals = {
   LockService: "readonly",
   Utilities: "readonly",
   Logger: "readonly",
-  Session: "readonly",
+  ScriptApp: "readonly",
 };
+
+// Apps Script loads every src/*.js file into one global scope, so a function or var declared at the
+// top level of one file is a global in the others. Collect those names so no-undef still catches
+// typos but accepts calls across files.
+function sharedSrcGlobals() {
+  const dir = path.join(__dirname, "src");
+  const names = {};
+  if (!fs.existsSync(dir)) return names;
+  for (const file of fs.readdirSync(dir).filter((name) => name.endsWith(".js"))) {
+    const code = fs.readFileSync(path.join(dir, file), "utf8");
+    for (const match of code.matchAll(/^(?:function|var)\s+([A-Za-z_$][\w$]*)/gm)) {
+      names[match[1]] = "readonly";
+    }
+  }
+  return names;
+}
 
 module.exports = [
   { ignores: ["node_modules/", "dist/", "coverage/", "tests/out/"] },
@@ -20,17 +38,18 @@ module.exports = [
   security.configs.recommended,
   {
     // Apps Script (V8): every .js file in src/ shares one global scope; no import/export.
-    // Files end with `if (typeof module !== "undefined") module.exports = {...}` so the tests can
-    // load them in Node; in Apps Script `module` is undefined and the line does nothing.
+    // tests/helpers/apps-script.js loads them the same way in Node.
     files: ["src/**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "script",
-      globals: { ...appsScriptGlobals, module: "writable" },
+      globals: { ...appsScriptGlobals, ...sharedSrcGlobals() },
     },
     rules: {
       // Top-level functions in src/ are used by other files or by Apps Script itself (doGet/doPost).
       "no-unused-vars": ["error", { vars: "local", args: "after-used" }],
+      // Each file's own declarations are also in the shared list above; that is not a redeclare.
+      "no-redeclare": ["error", { builtinGlobals: false }],
     },
   },
   {
