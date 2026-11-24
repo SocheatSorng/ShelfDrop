@@ -116,3 +116,24 @@ never read. Test: a listing cached in the old format is ignored and the names sh
   folders; a folder inside a volume is refused, its books never listed and not sendable; an unlisted
   `v` is never looked up. Noted, left: the send reads the volume listing (cached) to choose the back
   link; a volume added in the last 30 minutes needs Refresh on the series page.
+
+## Refinement 3: icons for folders, EPUB and PDF (2026-11-24)
+
+### Decisions (owner)
+
+1. **Style B, labelled pages:** a folder icon for folders; for books a page with "EPUB" or "PDF"
+   printed in it, so the type can't be misread. The type leaves the meta line ("2.0 MB", not
+   "EPUB · 2.0 MB").
+2. **Where:** folder rows (main folders, series, volume folders with several books), book rows
+   (grey on too-big rows) and the confirm page. Not the Sent page.
+
+### Design
+
+- **Drawn in CSS:** a bordered box with the type in bold sans-serif, and a box with a tab
+  (`:before`) for folders. No images, SVG or script; the CSS is sent once per page, so a row costs
+  about 30 bytes. Both use the text colour, so too-big rows are grey and dark mode inverts them.
+  Emoji (📁) were ruled out: the Kindle's Chromium 80 fonts often show them as boxes.
+- **Markup:** the icon is the row's last child, positioned at its left; the type icon is real text
+  (read out by screen readers), the folder icon is `aria-hidden`.
+- Tests: icons on every kind of row and the confirm page, none on the Sent page, no type in the meta
+  line, and no `<img>`, `<svg>`, `<script>` or `url(` on the pages.

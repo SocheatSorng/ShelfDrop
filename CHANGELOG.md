@@ -13,6 +13,8 @@ The first release.
   `FOLDER_ID`, never by its ID.
 - A volume folder with two or more books is one row ("Volume 2", "3 books") that opens a page of
   its books; a volume folder with one book still shows as that book.
+- Icons: a folder on rows that open a page, and a page labelled EPUB or PDF on book rows and the
+  confirm page (drawn in CSS: no images). The type left the line under each book.
 - `checkSetup` counts series per folder and points at the guide when Script Properties fill up.
 - One setup guide, [docs/setup.md](docs/setup.md), from nothing to a bookmark on the Kindle, with
   updating, changing the token, going back to an earlier version, troubleshooting and another time
