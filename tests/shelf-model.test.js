@@ -158,3 +158,25 @@ test("send check: the parents to look up are the file's parents that aren't shel
   assert.deepEqual(plain(app.parentsToCheck(file, [SHELF_A])), ["ser-1", "ser-9"]);
   assert.deepEqual(plain(app.parentsToCheck(null, [SHELF_A])), []);
 });
+
+// Review N18: a folder named only with spaces still gets a visible, tappable name.
+test("shelf: a series folder with a blank name is shown as (no name)", () => {
+  const shelf = app.buildShelf(
+    [{ folders: [folder("blank-1", "   ", SHELF_A)], files: [] }],
+    LIMIT,
+  );
+  assert.equal(shelf.series[0].name, "(no name)");
+});
+
+// Review SF2: the shelf knows when a listing was cut short.
+test("shelf: listings cut short at the size limit are counted", () => {
+  const shelf = app.buildShelf(
+    [
+      { folders: [], files: [], truncated: true },
+      { folders: [], files: [] },
+    ],
+    LIMIT,
+  );
+  assert.equal(shelf.truncated, 1);
+  assert.equal(app.buildShelf([{ folders: [], files: [] }], LIMIT).truncated, 0);
+});

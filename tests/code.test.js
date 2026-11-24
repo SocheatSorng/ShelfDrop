@@ -754,7 +754,7 @@ test("sending never trusts the cache: a book moved off the shelf is refused", ()
   assert.equal(calls.sent.length, 0);
 });
 
-test("a broken cache or an unreadable folder is never cached and never breaks the page", () => {
+test("a broken cache or an unreadable folder never breaks the page", () => {
   const broken = {
     get: () => {
       throw new Error("cache down");
@@ -777,5 +777,100 @@ test("a broken cache or an unreadable folder is never cached and never breaks th
       },
     },
   );
-  assert.equal(cache.map.size, 1);
+  // Only a short "unreadable" marker is kept for the dead folder (review SF1), never a listing.
+  assert.equal(cache.map.get("dir+:" + FOLDER_B).value, JSON.stringify({ unreadable: true }));
+});
+
+// Phase 2 security review SF1: a dead shelf folder must not bury the last send failure, and must
+// not cost a Drive read and a Script Properties write on every page.
+test("an unreadable folder is noted apart from send failures and retried at most every 5 min", () => {
+  const cache = memoryCache();
+  const state = memoryState({ _lastError: "2026-11-24T11:00:00.000Z send failed: quota" });
+  let deadReads = 0;
+  const listFolder = (id) => {
+    if (id === FOLDER_B) {
+      deadReads++;
+      throw new Error("Access denied");
+    }
+    return listingOf(id);
+  };
+  const opts = { cache, state, listFolder };
+  for (let i = 0; i < 3; i++) run("GET", { t: TOKEN }, opts);
+  run("GET", { t: TOKEN, s: "ser-tales-a01" }, opts);
+  run("GET", { t: TOKEN, s: "ser-tales-a01" }, opts);
+  assert.equal(deadReads, 1);
+  assert.equal(state.get("_lastError"), "2026-11-24T11:00:00.000Z send failed: quota");
+  assert.match(state.get("_lastFolderError"), /folder unreadable: Access denied/);
+  const negative = [...cache.map.entries()].find(([key]) => key.endsWith(FOLDER_B));
+  assert.equal(negative[1].seconds, 5 * 60);
+  run("GET", { t: TOKEN, r: "1" }, opts);
+  assert.equal(deadReads, 2); // Refresh tries again at once
+});
+
+test("checkSetup shows the last folder error too", () => {
+  const { globals, out } = fakeGlobals({ unreadable: [FOLDER_B] });
+  loadSrc(globals).checkSetup();
+  assert.match(out.logs.join("\n"), /Last folder error: \S+ folder unreadable: No item/);
+});
+
+// Review N12: a series folder moved off the shelf stops showing at once, cache or not.
+test("a series page re-checks in Drive that its folders are still on the shelf", () => {
+  const cache = memoryCache();
+  run("GET", { t: TOKEN }, { cache });
+  const moved = (id) =>
+    id === "ser-tales-b01"
+      ? { id, trashed: false, name: "tales", parentIds: ["somewhere-else"] }
+      : has(FOLDERS, id)
+        ? { id, trashed: false, ...FOLDERS[id] }
+        : null;
+  const gone = run("GET", { t: TOKEN, s: "ser-tales-b01" }, { cache, getFolder: moved });
+  assert.equal(gone.page.title, "Not on the shelf");
+  assert.ok(!gone.page.html.includes("Tales Vol"));
+  const rest = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache, getFolder: moved });
+  assert.equal(rest.page.title, "Tales");
+  assert.ok(rest.page.html.includes("Tales Vol 3.epub") && !rest.page.html.includes("Vol 12"));
+});
+
+// Review N17: a series name from Drive becomes the tab title; keep it short.
+test("the window title is capped at 100 characters", () => {
+  const title = app.windowTitle_({ title: "x".repeat(300) });
+  assert.equal(title.length, 100);
+  assert.equal(app.windowTitle_({ title: "Tales" }), "Tales - ShelfDrop");
+  assert.equal(app.windowTitle_({ title: "Not found", windowTitle: "Not found" }), "Not found");
+});
+
+// Review SF2: a shelf folder holding a whole library must not slow every page or overflow the cache.
+test("a folder listing stops at 300 files and 100 folders and says so", () => {
+  const iterator = (n, make) => {
+    let i = 0;
+    return { hasNext: () => i < n, next: () => make(i++) };
+  };
+  const driveFile = (i) => ({
+    getId: () => "big-file-" + String(i).padStart(6, "0"),
+    getName: () => "Book " + i + ".epub",
+    getSize: () => MB,
+    getMimeType: () => "application/epub+zip",
+    isTrashed: () => false,
+  });
+  const driveFolder = (i) => ({
+    getId: () => "big-folder-" + String(i).padStart(6, "0"),
+    getName: () => "Series " + i,
+    isTrashed: () => false,
+  });
+  const globals = {
+    DriveApp: {
+      getFolderById: () => ({
+        getFiles: () => iterator(1000, driveFile),
+        getFolders: () => iterator(500, driveFolder),
+      }),
+    },
+    CacheService: { getScriptCache: () => null },
+  };
+  const listing = loadSrc(globals).appsScriptServices_().listFolder("huge-folder-01", true);
+  assert.equal(listing.files.length, 300);
+  assert.equal(listing.folders.length, 100);
+  assert.equal(listing.truncated, true);
+  const cache = memoryCache();
+  run("GET", { t: TOKEN }, { cache, listFolder: () => listing });
+  for (const { value } of cache.map.values()) assert.ok(value.length < 100 * 1024);
 });

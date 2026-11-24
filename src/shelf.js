@@ -83,11 +83,13 @@ function seriesKey(name) {
 }
 
 // The shelf from the listings of each shelf folder ({ folders, files }, or null when a folder
-// couldn't be read): { series: [{ name, ids }], loose: books, unreadable: count }.
+// couldn't be read): { series: [{ name, ids }], loose: books, unreadable: count, truncated: count
+// of listings cut short at the size limit }.
 function buildShelf(listings, maxBytes) {
   const byKey = new Map();
   const files = [];
   let unreadable = 0;
+  let truncated = 0;
   for (const listing of listings || []) {
     if (!listing) {
       unreadable++;
@@ -96,13 +98,16 @@ function buildShelf(listings, maxBytes) {
     for (const folder of listing.folders || []) {
       if (folder.trashed) continue;
       const key = seriesKey(folder.name);
-      if (!byKey.has(key)) byKey.set(key, { name: String(folder.name).trim(), ids: [] });
+      if (!byKey.has(key)) {
+        byKey.set(key, { name: String(folder.name || "").trim() || "(no name)", ids: [] });
+      }
       byKey.get(key).ids.push(folder.id);
     }
     files.push(...(listing.files || []));
+    if (listing.truncated) truncated++;
   }
   const series = [...byKey.values()].sort((a, b) => compareNatural(a.name, b.name));
-  return { series, loose: listBooks(files, maxBytes), unreadable };
+  return { series, loose: listBooks(files, maxBytes), unreadable, truncated };
 }
 
 // The series holding a folder ID from the URL, only if the shelf listing itself has that ID.
