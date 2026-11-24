@@ -45,8 +45,6 @@ function handleVerified_(request, services, settings) {
   const params = request.params || {};
   const ctx = { appUrl: settings.webAppUrl, token: settings.token };
 
-  if (request.method === "GET" && params.diag === "1") return renderDiag(ctx);
-
   if (params.f === undefined) {
     const files = services.listFolder(settings.folderId);
     return renderList({ ...ctx, books: listBooks(files, settings.maxBytes) });

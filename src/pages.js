@@ -53,18 +53,9 @@ function bookMeta(book) {
   return book.kind.toUpperCase() + " &middot; " + escapeHtml(formatSize(book.size));
 }
 
-// Spike only: a link to the browser check, so it can be opened on the Kindle without typing.
-function diagLink(ctx) {
-  return (
-    '<p><a class="back" target="_top" href="' +
-    escapeHtml(appLink(ctx.appUrl, { t: ctx.token, diag: "1" })) +
-    '">Browser check</a></p>'
-  );
-}
-
 function renderList(ctx) {
   if (!ctx.books.length) {
-    return page("Books", "<p>No EPUB or PDF books in this folder.</p>" + diagLink(ctx));
+    return page("Books", "<p>No EPUB or PDF books in this folder.</p>");
   }
   const items = ctx.books.map((book) => {
     if (book.tooBig) {
@@ -87,7 +78,7 @@ function renderList(ctx) {
       "</span></a></li>"
     );
   });
-  return page("Books", "<ul>" + items.join("") + "</ul>" + diagLink(ctx));
+  return page("Books", "<ul>" + items.join("") + "</ul>");
 }
 
 // The confirm step: sending is a POST, so a browser preloading a link can never send a book.
@@ -145,21 +136,5 @@ function renderSetupNeeded(problems) {
     "<p>These Script Properties are missing or invalid:</p><ul>" +
       problems.map((name) => '<li class="book">' + escapeHtml(name) + "</li>").join("") +
       "</ul>",
-  );
-}
-
-// Spike only: records what the Kindle browser is and whether JavaScript runs inside the iframe.
-function renderDiag(ctx) {
-  return page(
-    "Browser check",
-    '<p>JavaScript: <b id="js">off</b></p>' +
-      '<p>Browser: <span id="ua">unknown (needs JavaScript)</span></p>' +
-      '<p>Page width: <span id="w">unknown</span></p>' +
-      "<script>" +
-      'document.getElementById("js").textContent="on";' +
-      'document.getElementById("ua").textContent=navigator.userAgent;' +
-      'document.getElementById("w").textContent=window.innerWidth+" x "+window.innerHeight;' +
-      "</script>" +
-      backLink(ctx),
   );
 }

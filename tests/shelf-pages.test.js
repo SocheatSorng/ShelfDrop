@@ -111,7 +111,6 @@ test("pages: every link and form targets the top window (HtmlService iframe)", (
     app.renderConfirm({ ...ctx, book }),
     app.renderSent({ ...ctx, book }),
     app.renderMessage(ctx, "Oops", "Text"),
-    app.renderDiag(ctx),
   ];
   for (const { html, title } of pages) {
     const opened = html.match(/<(a|form)\s/g) || [];
@@ -135,9 +134,10 @@ test("pages: too-big books are shown but not linked", () => {
   assert.ok(!html.includes("f=id-hugepdf"));
 });
 
-test("pages: the list links to the browser check, with the token", () => {
+test("pages: no page links to the old browser check or runs a script", () => {
   const { html } = app.renderList({ ...ctx, books: [] });
-  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;diag=1"`));
+  assert.ok(!html.includes("diag") && !html.includes("<script"));
+  assert.equal(app.renderDiag, undefined);
 });
 
 test("pages: the confirm page sends with a POST form carrying t and f", () => {

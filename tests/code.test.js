@@ -224,9 +224,11 @@ test("a Gmail refusal in any language is explained correctly", () => {
   assert.ok(unknown.page.html.includes("couldn&#39;t be sent"));
 });
 
-test("the diag page needs the token too", () => {
-  assert.equal(run("GET", { t: TOKEN, diag: "1" }).page.title, "Browser check");
-  assert.equal(run("GET", { diag: "1" }).page.title, "Not found");
+// Security review N4: the spike's browser check is gone; diag=1 is just an unknown parameter.
+test("the old diag page is gone", () => {
+  const { page } = run("GET", { t: TOKEN, diag: "1" });
+  assert.notEqual(page.title, "Browser check");
+  assert.ok(!page.html.includes("<script"));
 });
 
 // The real entry points, with fake Apps Script services in the global scope.
