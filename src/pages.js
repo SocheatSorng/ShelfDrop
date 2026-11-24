@@ -53,8 +53,19 @@ function bookMeta(book) {
   return book.kind.toUpperCase() + " &middot; " + escapeHtml(formatSize(book.size));
 }
 
+// Spike only: a link to the browser check, so it can be opened on the Kindle without typing.
+function diagLink(ctx) {
+  return (
+    '<p><a class="back" target="_top" href="' +
+    escapeHtml(appLink(ctx.appUrl, { t: ctx.token, diag: "1" })) +
+    '">Browser check</a></p>'
+  );
+}
+
 function renderList(ctx) {
-  if (!ctx.books.length) return page("Books", "<p>No EPUB or PDF books in this folder.</p>");
+  if (!ctx.books.length) {
+    return page("Books", "<p>No EPUB or PDF books in this folder.</p>" + diagLink(ctx));
+  }
   const items = ctx.books.map((book) => {
     if (book.tooBig) {
       return (
@@ -76,7 +87,7 @@ function renderList(ctx) {
       "</span></a></li>"
     );
   });
-  return page("Books", "<ul>" + items.join("") + "</ul>");
+  return page("Books", "<ul>" + items.join("") + "</ul>" + diagLink(ctx));
 }
 
 // The confirm step: sending is a POST, so a browser preloading a link can never send a book.

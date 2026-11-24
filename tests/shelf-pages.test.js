@@ -127,7 +127,12 @@ test("pages: too-big books are shown but not linked", () => {
   const book = app.listBooks([file("huge.pdf", 40 * MB)], LIMIT)[0];
   const { html } = app.renderList({ ...ctx, books: [book] });
   assert.ok(html.includes("too big to send"));
-  assert.ok(!html.includes("<a "));
+  assert.ok(!html.includes("f=id-hugepdf"));
+});
+
+test("pages: the list links to the browser check, with the token", () => {
+  const { html } = app.renderList({ ...ctx, books: [] });
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;diag=1"`));
 });
 
 test("pages: the confirm page sends with a POST form carrying t and f", () => {

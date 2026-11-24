@@ -73,6 +73,19 @@ Fallbacks if an experiment fails:
 4. **Spike books:** a separate `ShelfDrop test` folder with public-domain books (recommended: the
    spike never touches your real shelf) or a copy of a few of your own books.
 
+## Notes from building
+
+- **clasp is not a project dependency.** `npm audit` reports known vulnerabilities in clasp's own
+  dependencies for both 3.4.1 (zod, glob/minimatch: memory and pattern denial-of-service) and
+  2.5.0 (a path traversal when cloning). clasp runs only on the owner's PC to push our own files,
+  so it is used pinned through `npx @google/clasp@3.4.1`, and `npm audit` stays a check of what
+  the project itself depends on. Revisit when a clean clasp release exists.
+- The owner's link reaches the Kindle as a small HTML document mailed by `sendLinkToKindle`, so
+  the long URL never has to be typed on the Kindle (Amazon sees the link; it already sees the
+  books).
+- Independent check: the rendered pages were loaded in headless Edge; every link and form targets
+  the top window, names stay escaped, and the diag script runs.
+
 ## Decisions made (2026-11-24)
 
 1. **Deploy:** clasp from the repo.

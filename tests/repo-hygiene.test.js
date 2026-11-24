@@ -26,7 +26,13 @@ const placeholders = new Set(["yourname", "you", "name", "example", "your-kindle
 
 test(".gitignore keeps secrets and clasp files out of git", () => {
   const lines = fs.readFileSync(path.join(root, ".gitignore"), "utf8").split(/\r?\n/);
-  for (const required of [".env", ".clasp.json", ".clasprc.json", "node_modules/"]) {
+  for (const required of [
+    ".env",
+    ".clasp.json",
+    ".clasprc.json",
+    ".deployment.json",
+    "node_modules/",
+  ]) {
     assert.ok(lines.includes(required), `.gitignore must list ${required}`);
   }
 });

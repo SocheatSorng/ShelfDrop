@@ -7,14 +7,17 @@ Spec and phases: `docs/spec.md`. One plan per phase: `docs/phaseN-plan.md`.
 ## Run, test, lint
 
 - `npm ci` once. Then `npm run lint`, `npm test`, `npm run audit` (or `npm run check` for all three).
-- No build step: `src/` is the app. Deploy with clasp (set up in phase 1).
+- No build step: `src/` is the app. Deploy: `npm run deploy` (clasp 3.4.1 via npx; not a project
+  dependency because its own dependencies have known vulnerabilities). Owner's setup steps:
+  `docs/setup-phase1.md`. Never run clasp yourself: it acts on the owner's Google account.
 - After every code change: run lint and tests without being asked and report the result.
 
 ## Code rules
 
 - `src/` is Apps Script V8: plain scripts sharing one global scope, no `import`/`export`, no npm
-  packages at runtime. Each file ends with
-  `if (typeof module !== "undefined") module.exports = { ... };` so tests can `require` it.
+  packages at runtime. Tests load all of `src/` into one shared scope the same way
+  (`tests/helpers/apps-script.js`), and ESLint learns the cross-file names from `src/`. Keep
+  top-level code to `function` and `var` declarations (no top-level calls).
 - Keep Apps Script calls (DriveApp, MailApp, PropertiesService, HtmlService) in thin adapter
   functions; keep logic (sorting, filtering, token check, HTML rendering) pure and tested in Node
   with fake data.

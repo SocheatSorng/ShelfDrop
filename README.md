@@ -62,8 +62,16 @@ npm run audit
 
 ## Build and deploy
 
-There is no build step: the files in `src/` are the app. Deployment to your Google account with
-[clasp](https://github.com/google/clasp) is set up in phase 1, with step-by-step instructions.
+There is no build step: the files in `src/` are the app. Deploy to your Google account with
+[clasp](https://github.com/google/clasp) (run pinned through `npx`):
+
+```powershell
+npm run clasp -- login
+npm run clasp:init -- <ScriptId>
+npm run deploy
+```
+
+The full first-time setup is in [docs/setup-phase1.md](docs/setup-phase1.md).
 
 ## Settings (never in the repo)
 

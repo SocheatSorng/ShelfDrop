@@ -10,6 +10,8 @@ client_secret*.json
 # clasp: .clasp.json holds the script ID of the owner's own project; .clasprc.json holds OAuth tokens
 .clasp.json
 .clasprc.json
+# the web app's deployment ID (tools/clasp-deploy.js)
+.deployment.json
 
 # Dependencies, build output, caches
 node_modules/

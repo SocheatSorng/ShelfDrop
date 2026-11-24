@@ -81,7 +81,10 @@ npm run check       # all three
 npm run format      # fix formatting
 ```
 
-Deploy commands (clasp push / deploy) are added in phase 1.
+npm run clasp -- login # owner signs clasp in to the ShelfDrop Google account
+npm run clasp:init -- <id> # writes the git-ignored .clasp.json
+npm run deploy # clasp push + deploy, same web app URL each time
+npm run --silent token | clip # new ACCESS_TOKEN to the clipboard
 
 ## Project structure
 
@@ -101,12 +104,12 @@ docs/           spec, phase plans, setup guide
 function compareNatural(a, b) {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 }
-
-if (typeof module !== "undefined") module.exports = { compareNatural };
 ```
 
-- Pure functions for logic; Apps Script services only in thin adapters in `Code.js`/`sender.js`,
-  passed in as parameters so tests can use fakes.
+- All `src/*.js` files share one global scope (as in Apps Script); tests load them the same way
+  with `tests/helpers/apps-script.js`.
+- Pure functions for logic; Apps Script services only in thin adapters in `Code.js`, passed in as
+  parameters so tests can use fakes.
 - Every name from Drive is escaped before it goes into HTML.
 - Prettier formatting, `eqeqeq`, no `eval`/`new Function`.
 
