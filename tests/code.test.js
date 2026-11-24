@@ -32,6 +32,8 @@ const FILES = {
   "tales-5-id-001": { name: "scan_005.epub", size: MB, parentIds: ["vol-tales-05"] },
   "tales-6b-id-01": { name: "part 2.epub", size: MB, parentIds: ["vol-tales-06"] },
   "tales-6a-id-01": { name: "part 1.pdf", size: MB, parentIds: ["vol-tales-06"] },
+  "deep-6-id-0001": { name: "deep one.epub", size: MB, parentIds: ["vol-6-sub-001"] },
+  "deep-6-id-0002": { name: "deep two.epub", size: MB, parentIds: ["vol-6-sub-001"] },
   "other-1-id-001": { name: "Other 1.epub", size: MB, parentIds: ["ser-other-b01"] },
   "private-2-id01": { name: "Private 2.epub", size: MB, parentIds: ["not-shelf-sub1"] },
 };
@@ -47,6 +49,7 @@ const FOLDERS = {
   "ser-other-b01": { name: "Other Series", parentIds: [FOLDER_B] },
   "vol-tales-05": { name: "Volume 5", parentIds: ["ser-tales-a01"] }, // a volume folder
   "vol-tales-06": { name: "Volume 6", parentIds: ["ser-tales-a01"] }, // two books: its own page
+  "vol-6-sub-001": { name: "Deeper", parentIds: ["vol-tales-06"] }, // inside a volume: ignored
   "ser-extras-01": { name: "Extras", parentIds: ["vol-tales-05"] }, // three levels down
   "not-shelf-sub1": { name: "Private stuff", parentIds: ["other-folder-01"] },
 };
@@ -122,11 +125,18 @@ function run(method, params, overrides) {
 }
 
 test("no token or a wrong token: not-found page, Drive is never read, nothing is sent", () => {
-  for (const params of [{}, { t: "wrong" }, { t: TOKEN + "x", f: "vol-1-epub-id" }]) {
+  const cases = [
+    {},
+    { t: "wrong" },
+    { t: TOKEN + "x", f: "vol-1-epub-id" },
+    { t: "wrong", m: "1" },
+    { t: "wrong", s: "ser-tales-a01", v: "vol-tales-06" },
+  ];
+  for (const params of cases) {
     for (const method of ["GET", "POST"]) {
       const { page, calls } = run(method, params);
       assert.equal(page.title, "Not found");
-      assert.equal(calls.listFolder + calls.getFile, 0);
+      assert.equal(calls.listFolder + calls.getFile + calls.getFolder, 0);
       assert.equal(calls.sent.length, 0);
     }
   }
@@ -1322,11 +1332,28 @@ test("a volume folder with two books is one row on the series page, opening its 
 // Security review N6, for volumes: a volume ID from the URL is used only if the series' own
 // listing has it and Drive, read fresh, says it is still in that series.
 test("a volume page opens only a volume folder of that series, checked fresh in Drive", () => {
-  for (const v of ["vol-tales-05x", "ser-tales-b01", "not-shelf-sub1", "ser-extras-01", ""]) {
-    const { page } = run("GET", { t: TOKEN, s: "ser-tales-a01", v });
+  const plainSeries = run("GET", { t: TOKEN, s: "ser-tales-a01", v: "vol-tales-06" }).calls;
+  for (const v of [
+    "vol-tales-05x",
+    "ser-tales-b01",
+    "not-shelf-sub1",
+    "ser-extras-01",
+    "vol-6-sub-001",
+    "",
+  ]) {
+    const { page, calls } = run("GET", { t: TOKEN, s: "ser-tales-a01", v });
     assert.equal(page.title, "Not on the shelf", v);
-    assert.ok(!page.html.includes("part 1.pdf"), v);
+    assert.ok(!page.html.includes("part 1.pdf") && !page.html.includes("deep"), v);
+    // Only the series' own fresh check reads a folder; an unlisted v is never looked up.
+    assert.equal(calls.getFolder, plainSeries.getFolder - 1, v);
   }
+  // Books three levels down never show and can't be sent.
+  for (const params of [{ s: "ser-tales-a01" }, { s: "ser-tales-a01", v: "vol-tales-06" }]) {
+    assert.ok(!run("GET", { t: TOKEN, ...params }).page.html.includes("deep"));
+  }
+  const deep = run("POST", { t: TOKEN, f: "deep-6-id-0001" });
+  assert.equal(deep.page.title, "Can't send this");
+  assert.equal(deep.calls.sent.length, 0);
   // Listed in the (maybe 30-minute-old) cache, but moved away in Drive since.
   const moved = (id) =>
     id === "vol-tales-06"
