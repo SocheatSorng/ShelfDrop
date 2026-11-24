@@ -25,8 +25,10 @@ function windowTitle_(result) {
 function handleRequest(request, services) {
   const params = request.params || {};
   let settings;
+  let props;
   try {
-    settings = readSettings(services.properties());
+    props = services.properties();
+    settings = readSettings(props);
   } catch {
     services.log("request failed: Script Properties could not be read");
     return renderNotFound();
@@ -39,16 +41,23 @@ function handleRequest(request, services) {
   // Any unexpected failure (folder unshared, a Google service down) gets a plain page instead of
   // Apps Script's error page, and a log line with the secrets hidden.
   try {
-    return handleVerified_(request, services, settings);
+    return handleVerified_(request, services, settings, props);
   } catch (error) {
     noteFailure_(services, settings, "request failed", error);
     return renderError();
   }
 }
 
-function handleVerified_(request, services, settings) {
+function handleVerified_(request, services, settings, props) {
   const params = request.params || {};
-  const ctx = { appUrl: settings.webAppUrl, token: settings.token };
+  // Sent marks come from this request's Script Properties, never the cache, so a book sent a
+  // minute ago shows its mark at once.
+  const ctx = {
+    appUrl: settings.webAppUrl,
+    token: settings.token,
+    sent: sentTimes(props),
+    now: services.now(),
+  };
 
   if (params.f === undefined) {
     const refresh = params.r === "1";

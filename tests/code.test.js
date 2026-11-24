@@ -1007,3 +1007,57 @@ test("the send check reads at most 5 parents and 5 grandparents, and none when i
   assert.equal(direct.page.title, "Send to Kindle?");
   assert.equal(direct.calls.getFolder, 1);
 });
+
+// Phase 3: "✓ sent <date>" marks.
+
+// Script Properties as Apps Script has them: the settings plus what the app wrote to state.
+function propsWith(state) {
+  return () => ({ ...PROPS, ...Object.fromEntries(state.keys().map((k) => [k, state.get(k)])) });
+}
+
+const marks = (html) => (html.match(/&#10003; sent [^<]*/g) || []).map((m) => m.slice(9));
+
+test("a sent book shows its last send date on its row and its confirm page; others don't", () => {
+  const state = memoryState({
+    "_sent:vol-1-epub-id": String(NOW - 60 * 60 * 1000),
+    "_sent:tales-3-id-001": String(Date.UTC(2025, 10, 2, 5)),
+    "_sent:tales-5-id-001": "not a time",
+  });
+  const props = propsWith(state);
+  const shelf = run("GET", { t: TOKEN }, { state, properties: props });
+  assert.deepEqual(marks(shelf.page.html), ["sent 24 Nov"]);
+  assert.ok(/Vol 1\.epub[\s\S]*?&#10003; sent 24 Nov[\s\S]*?Vol 2\.epub/.test(shelf.page.html));
+  const series = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { state, properties: props });
+  assert.deepEqual(marks(series.page.html), ["sent 2 Nov 2025"]);
+  const confirm = run("GET", { t: TOKEN, f: "vol-1-epub-id" }, { state, properties: props });
+  assert.deepEqual(marks(confirm.page.html), ["sent 24 Nov"]);
+  const unsent = run("GET", { t: TOKEN, f: "vol-2-epub-id" }, { state, properties: props });
+  assert.deepEqual(marks(unsent.page.html), []);
+});
+
+test("the mark shows at once after a send, though the listing comes from the cache", () => {
+  const state = memoryState();
+  const cache = memoryCache();
+  const props = propsWith(state);
+  assert.deepEqual(
+    marks(run("GET", { t: TOKEN }, { state, cache, properties: props }).page.html),
+    [],
+  );
+  const later = NOW + 2 * 60 * 60 * 1000; // 21:00 in Cambodia, still the 24th
+  run(
+    "POST",
+    { t: TOKEN, f: "vol-2-epub-id" },
+    { state, cache, properties: props, now: () => later },
+  );
+  const again = run("GET", { t: TOKEN }, { state, cache, properties: props, now: () => later });
+  assert.equal(again.calls.listFolder, 0);
+  assert.deepEqual(marks(again.page.html), ["sent 24 Nov"]);
+});
+
+test("sending again moves the mark to the new date", () => {
+  const state = memoryState({ "_sent:vol-1-epub-id": String(Date.UTC(2026, 10, 1, 5)) });
+  const props = propsWith(state);
+  run("POST", { t: TOKEN, f: "vol-1-epub-id" }, { state, properties: props });
+  const confirm = run("GET", { t: TOKEN, f: "vol-1-epub-id" }, { state, properties: props });
+  assert.deepEqual(marks(confirm.page.html), ["sent 24 Nov"]);
+});

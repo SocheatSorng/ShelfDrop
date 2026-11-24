@@ -94,10 +94,23 @@ function bookLabel(book) {
   return escapeHtml(book.label || book.name);
 }
 
-// Type and size, led by the file name when the row shows a volume folder's name instead.
-function bookMeta(book) {
+// Type and size, led by the file name when the row shows a volume folder's name instead, and
+// followed by "✓ sent 24 Nov" if the book was sent before.
+function bookMeta(book, ctx) {
   const file = book.label && book.label !== book.name ? escapeHtml(book.name) + " &middot; " : "";
-  return file + book.kind.toUpperCase() + " &middot; " + escapeHtml(formatSize(book.size));
+  return (
+    file +
+    book.kind.toUpperCase() +
+    " &middot; " +
+    escapeHtml(formatSize(book.size)) +
+    sentMark(ctx, book)
+  );
+}
+
+// The last send, in Cambodia time (phase 3 decision). Nothing for a book never sent.
+function sentMark(ctx, book) {
+  const ms = ctx && ctx.sent && ctx.sent.get(book.id);
+  return ms ? " &middot; &#10003; sent " + escapeHtml(formatSentDate(ms, ctx.now)) : "";
 }
 
 function bookItem(ctx, book) {
@@ -106,7 +119,7 @@ function bookItem(ctx, book) {
       '<li><span class="book off">' +
       bookLabel(book) +
       '<span class="meta">' +
-      bookMeta(book) +
+      bookMeta(book, ctx) +
       " &middot; too big to send</span></span></li>"
     );
   }
@@ -116,7 +129,7 @@ function bookItem(ctx, book) {
     '">' +
     bookLabel(book) +
     '<span class="meta">' +
-    bookMeta(book) +
+    bookMeta(book, ctx) +
     "</span></a></li>"
   );
 }
@@ -183,7 +196,7 @@ function renderConfirm(ctx) {
     '<p class="name">' +
       bookLabel(ctx.book) +
       '<span class="meta">' +
-      bookMeta(ctx.book) +
+      bookMeta(ctx.book, ctx) +
       "</span></p>" +
       '<form method="post" target="_top" action="' +
       escapeHtml(ctx.appUrl) +
