@@ -96,8 +96,20 @@ function seriesPage(volumes, extra = {}) {
   return app.renderSeries({ ...ctx, series: SERIES, seriesId: "ser-2", volumes, ...extra });
 }
 
+// A main folder's page (phase 5): with one main folder it is the first page.
+const MAIN = { id: FOLDER, n: 1, name: "Light Novels" };
+
 function shelfPage(extra = {}) {
-  return app.renderShelf({ ...ctx, series: [SERIES], loose: [], unreadable: 0, ...extra });
+  return app.renderShelf({ ...ctx, main: MAIN, series: [SERIES], loose: [], ...extra });
+}
+
+function foldersPage(extra = {}) {
+  return app.renderFolders({
+    ...ctx,
+    mains: [MAIN, { id: "folder-test-0002", n: 2, name: "Manga" }],
+    unreadable: 0,
+    ...extra,
+  });
 }
 
 test("pages: names from Drive are escaped everywhere", () => {
@@ -171,7 +183,8 @@ test("pages: the not-found page reveals nothing and links nowhere", () => {
 
 test("pages: the empty shelf and setup pages read sensibly", () => {
   assert.ok(seriesPage([]).html.includes("No books yet"));
-  assert.ok(shelfPage({ series: [] }).html.includes("No series or books"));
+  assert.ok(shelfPage({ series: [] }).html.includes("No series or books in this folder yet"));
+  assert.ok(foldersPage({ mains: [], unreadable: 1 }).html.includes("No shelf folders"));
   const { html } = app.renderSetupNeeded(["KINDLE_EMAIL"]);
   assert.ok(html.includes("KINDLE_EMAIL"));
 });
@@ -198,28 +211,60 @@ test("shelf: an EPUB uploaded with a generic type still counts", () => {
   assert.equal(app.checkSendable(f, [FOLDER], LIMIT).ok, true);
 });
 
-test("pages: the shelf links each series by its first folder ID, then lists loose books", () => {
+// Phase 5: the main folder's name is the title, and its loose books follow its series with no
+// "Books" heading.
+test("pages: a folder page is titled by the folder, its series linked, then its loose books", () => {
   const loose = app.listBooks([file("Loose One.epub")], LIMIT);
   const { title, html } = shelfPage({ loose });
-  assert.equal(title, "Bookshelf");
+  assert.equal(title, "Light Novels");
+  assert.ok(html.includes("<h1>Light Novels</h1>"));
+  assert.ok(!html.includes("Bookshelf") && !html.includes("<h2>"));
   assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-1">Sample Series</a>`));
-  assert.ok(html.indexOf("Sample Series") < html.indexOf("<h2>Books</h2>"));
+  assert.ok(html.indexOf("Sample Series") < html.indexOf("Loose One.epub"));
   assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;f=id-LooseOneepub"`));
-  assert.ok(!shelfPage().html.includes("<h2>Books</h2>"));
 });
 
-test("pages: the shelf says when a shelf folder couldn't be read, without its ID", () => {
-  assert.ok(shelfPage({ unreadable: 1 }).html.includes("1 shelf folder couldn&#39;t be read"));
-  assert.ok(shelfPage({ unreadable: 2 }).html.includes("2 shelf folders couldn&#39;t be read"));
-  assert.ok(!shelfPage().html.includes("couldn"));
+test("pages: the folder list is titled ShelfDrop and links each main folder in the given order", () => {
+  const { title, html } = foldersPage();
+  assert.equal(title, "ShelfDrop");
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;m=1">Light Novels</a>`));
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;m=2">Manga</a>`));
+  assert.ok(html.indexOf("Light Novels") < html.indexOf("Manga"));
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;r=1">Refresh</a>`));
+  assert.ok(!html.includes("Back to"));
 });
 
-test("pages: shelf and series pages have a Refresh link; the series page goes back to the shelf", () => {
-  assert.ok(shelfPage().html.includes(`href="${URL}?t=${TOKEN}&amp;r=1">Refresh</a>`));
-  const { title, html } = seriesPage([]);
+test("pages: the folder list says when a shelf folder couldn't be read, without its ID", () => {
+  assert.ok(foldersPage({ unreadable: 1 }).html.includes("1 shelf folder couldn&#39;t be read"));
+  assert.ok(foldersPage({ unreadable: 2 }).html.includes("2 shelf folders couldn&#39;t be read"));
+  assert.ok(!foldersPage().html.includes("couldn"));
+});
+
+test("pages: folder names are escaped in the folder list and as the folder page title", () => {
+  const nasty = { id: FOLDER, name: '<b onclick="x">&</b>' };
+  for (const { html } of [foldersPage({ mains: [nasty] }), shelfPage({ main: nasty })]) {
+    assert.ok(!html.includes("<b "));
+    assert.ok(html.includes("&lt;b onclick=&quot;x&quot;&gt;&amp;&lt;/b&gt;"));
+  }
+});
+
+test("pages: with several main folders a folder page goes back to the list; with one it doesn't", () => {
+  const several = shelfPage({ multi: true }).html;
+  assert.ok(several.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the shelf</a>`));
+  assert.ok(several.includes(`href="${URL}?t=${TOKEN}&amp;m=1&amp;r=1">Refresh</a>`));
+  const one = shelfPage().html;
+  assert.ok(!one.includes("Back to"));
+  assert.ok(one.includes(`href="${URL}?t=${TOKEN}&amp;r=1">Refresh</a>`));
+});
+
+test("pages: a series page has Refresh and goes back to its main folder", () => {
+  const { title, html } = seriesPage([], { mainNo: 1, multi: true });
   assert.equal(title, "Sample Series");
   assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-2&amp;r=1">Refresh</a>`));
-  assert.ok(html.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the shelf</a>`));
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;m=1">&larr; Back to the folder</a>`));
+  // One main folder: the first page is the folder.
+  const one = seriesPage([], { mainNo: 1 }).html;
+  assert.ok(one.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the folder</a>`));
 });
 
 // UI pass: on the Kindle a long series must not need a scroll to reach Back or Refresh.
@@ -239,15 +284,19 @@ test("pages: Back and Refresh come before the list; a long series repeats Back a
   assert.ok(shelf.indexOf(">Refresh</a>") < shelf.indexOf("Sample Series"));
 });
 
-test("pages: confirm and sent pages go back to the book's series, or to the shelf", () => {
+test("pages: confirm and sent pages go back to the book's series, its main folder, or the shelf", () => {
   const book = app.listBooks([file("a.epub")], LIMIT)[0];
   for (const render of [app.renderConfirm, app.renderSent]) {
-    const inSeries = render({ ...ctx, book, seriesId: "ser-2" }).html;
+    const inSeries = render({ ...ctx, book, seriesId: "ser-2", mainNo: 1, multi: true }).html;
     assert.ok(
       inSeries.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-2">&larr; Back to the series</a>`),
     );
-    const loose = render({ ...ctx, book, seriesId: null }).html;
-    assert.ok(loose.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the shelf</a>`));
+    const loose = render({ ...ctx, book, seriesId: null, mainNo: 1, multi: true }).html;
+    assert.ok(loose.includes(`href="${URL}?t=${TOKEN}&amp;m=1">&larr; Back to the folder</a>`));
+    const looseOne = render({ ...ctx, book, seriesId: null, mainNo: 1 }).html;
+    assert.ok(looseOne.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the folder</a>`));
+    const unknown = render({ ...ctx, book, seriesId: null }).html;
+    assert.ok(unknown.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the shelf</a>`));
   }
 });
 

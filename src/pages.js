@@ -69,15 +69,29 @@ function page(title, body, nav = {}) {
   };
 }
 
-// Back to the book's series when it has one (a checked folder ID), otherwise to the shelf.
+// The link parameters of a main folder's page, by its place n in FOLDER_ID (never its ID). With one
+// main folder (ctx.multi false) that page is the first page, so it needs none.
+function folderParams(ctx, n) {
+  return ctx.multi ? { t: ctx.token, m: String(n) } : { t: ctx.token };
+}
+
+// Back to the book's series when it has one (a checked folder ID), else to its main folder
+// (ctx.mainNo, from the send check or the series lookup, never the URL), else to the first page.
 function backLink(ctx) {
-  const toSeries = Boolean(ctx.seriesId);
-  const params = toSeries ? { t: ctx.token, s: ctx.seriesId } : { t: ctx.token };
+  let params = { t: ctx.token };
+  let to = "shelf";
+  if (ctx.seriesId) {
+    params = { t: ctx.token, s: ctx.seriesId };
+    to = "series";
+  } else if (ctx.mainNo) {
+    params = folderParams(ctx, ctx.mainNo);
+    to = "folder";
+  }
   return (
     '<a target="_top" href="' +
     escapeHtml(appLink(ctx.appUrl, params)) +
     '">&larr; Back to the ' +
-    (toSeries ? "series" : "shelf") +
+    to +
     "</a>"
   );
 }
@@ -148,8 +162,20 @@ function truncatedNote(ctx) {
     : "";
 }
 
-// The first page: series (linked by their first folder ID), then loose books.
-function renderShelf(ctx) {
+// A list row linking to another page of the app.
+function linkItem(ctx, params, name) {
+  return (
+    '<li><a class="book" target="_top" href="' +
+    escapeHtml(appLink(ctx.appUrl, { t: ctx.token, ...params })) +
+    '">' +
+    escapeHtml(name) +
+    "</a></li>"
+  );
+}
+
+// The first page with two or more main folders (phase 5): one row per folder in FOLDER_ID, by its
+// own name, in FOLDER_ID order. No folder ID is shown as text.
+function renderFolders(ctx) {
   const parts = [];
   if (ctx.unreadable) {
     parts.push(
@@ -159,27 +185,38 @@ function renderShelf(ctx) {
         " couldn&#39;t be read.</p>",
     );
   }
-  parts.push(truncatedNote(ctx));
-  if (ctx.series.length) {
-    const items = ctx.series.map(
-      (series) =>
-        '<li><a class="book" target="_top" href="' +
-        escapeHtml(appLink(ctx.appUrl, { t: ctx.token, s: series.ids[0] })) +
-        '">' +
-        escapeHtml(series.name) +
-        "</a></li>",
-    );
-    parts.push("<ul>" + items.join("") + "</ul>");
-  }
-  if (ctx.loose.length) {
+  if (ctx.mains.length) {
     parts.push(
-      "<h2>Books</h2><ul>" + ctx.loose.map((book) => bookItem(ctx, book)).join("") + "</ul>",
+      "<ul>" +
+        ctx.mains.map((main) => linkItem(ctx, { m: String(main.n) }, main.name)).join("") +
+        "</ul>",
     );
+  } else {
+    parts.push("<p>No shelf folders could be read.</p>");
   }
-  if (!ctx.series.length && !ctx.loose.length) {
-    parts.push("<p>No series or books on the shelf yet.</p>");
-  }
-  return page("Bookshelf", parts.join(""), { refresh: refreshLink(ctx, {}) });
+  // The tab says just "ShelfDrop", not "ShelfDrop - ShelfDrop".
+  return {
+    ...page("ShelfDrop", parts.join(""), { refresh: refreshLink(ctx, {}) }),
+    windowTitle: "ShelfDrop",
+  };
+}
+
+// A main folder's page, titled by the folder's name: its series (linked by their first folder ID),
+// then its loose books. With one main folder this is the first page, with nothing to go back to.
+function renderShelf(ctx) {
+  const parts = [truncatedNote(ctx)];
+  const items = ctx.series
+    .map((series) => linkItem(ctx, { s: series.ids[0] }, series.name))
+    .concat(ctx.loose.map((book) => bookItem(ctx, book)));
+  parts.push(
+    items.length
+      ? "<ul>" + items.join("") + "</ul>"
+      : "<p>No series or books in this folder yet.</p>",
+  );
+  return page(ctx.main.name, parts.join(""), {
+    back: ctx.multi ? backLink({ appUrl: ctx.appUrl, token: ctx.token }) : "",
+    refresh: refreshLink(ctx, ctx.multi ? { m: String(ctx.main.n) } : {}),
+  });
 }
 
 // One series: its volumes in natural order.

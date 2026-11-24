@@ -77,7 +77,7 @@ test("messages the guide quotes are the ones the code shows or logs", () => {
   const src = srcText().replace(/&#39;/g, "'");
   const quoted = [
     "Script Properties look right.",
-    "loose books.",
+    "loose books in ",
     "in FOLDER_ID couldn't be read",
     "Not found",
     "Setup needed",

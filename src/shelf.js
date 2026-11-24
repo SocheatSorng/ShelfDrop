@@ -102,7 +102,9 @@ function checkSendable(file, shelfIds, maxBytes, folders) {
 // The main folders are the folders in FOLDER_ID. mains is [{ id, listing }] in FOLDER_ID order,
 // listing null when the folder couldn't be read.
 
-// The rows of the first page, in FOLDER_ID order so the owner chooses it: [{ id, name }]. Each is
+// The rows of the first page, in FOLDER_ID order so the owner chooses it: [{ id, n, name }], n
+// being the folder's place in FOLDER_ID (1, 2, ...), which links use instead of the ID (a setting
+// never shown in a page, phase 3). Each is
 // its own row, even with the same name as another (owner's decision, 2026-11-24). A folder that
 // couldn't be read is left out (the page counts it). A listing without a name (cached before
 // names were kept, or blank) shows its place in FOLDER_ID.
@@ -111,7 +113,7 @@ function mainFolders(mains) {
     .map((main, i) => {
       if (!main.listing) return null;
       const name = String(main.listing.name || "").trim();
-      return { id: main.id, name: name || "Folder " + (i + 1) };
+      return { id: main.id, n: i + 1, name: name || "Folder " + (i + 1) };
     })
     .filter(Boolean);
 }

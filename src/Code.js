@@ -57,20 +57,41 @@ function handleVerified_(request, services, settings, props) {
     token: settings.token,
     sent: sentTimes(props),
     now: services.now(),
+    // With two or more main folders (FOLDER_ID entries) the first page lists them (phase 5).
+    multi: settings.folderIds.length > 1,
   };
 
   if (params.f === undefined) {
     const refresh = params.r === "1";
-    const shelf = readShelf_(services, settings, refresh && params.s === undefined);
-    if (params.s === undefined) return renderShelf({ ...ctx, ...shelf });
-    // Only a series ID the shelf listing itself produced is used (review N6).
+    if (params.s === undefined) {
+      // A main folder's page, by its place in FOLDER_ID (1, 2, ...): folder IDs are settings and
+      // never appear in a page or link.
+      if (params.m !== undefined) {
+        const mainId = mainIdAt_(settings, params.m);
+        if (!mainId) {
+          return renderMessage(ctx, "Not on the shelf", "This folder isn't on the shelf.");
+        }
+        return folderPage_(services, settings, ctx, mainId, refresh);
+      }
+      if (!ctx.multi) return folderPage_(services, settings, ctx, settings.folderIds[0], refresh);
+      const mains = readMains_(services, settings, refresh);
+      return renderFolders({
+        ...ctx,
+        mains: mainFolders(mains),
+        unreadable: mains.filter((main) => !main.listing).length,
+      });
+    }
+    // Only a series ID a main folder's listing itself produced is used (review N6), and same-named
+    // series merge only inside that main folder (phase 5: never across main folders).
     // The listing may be up to 30 minutes old, so each of the series' folders is checked fresh in
     // Drive (review N12): one moved off the shelf stops showing at once.
-    const found = findSeries(shelf, params.s);
+    const main = findMainOfSeries(readMains_(services, settings, false), params.s);
+    const found = main ? findSeries(buildShelf([main.listing], settings.maxBytes), params.s) : null;
     const ids = found ? found.ids.filter((id) => stillOnShelf_(services, settings, id)) : [];
     if (!ids.includes(params.s)) {
       return renderMessage(ctx, "Not on the shelf", "This series isn't on the shelf any more.");
     }
+    ctx.mainNo = settings.folderIds.indexOf(main.id) + 1;
     const series = { ...found, ids };
     const listings = ids.map((id) => readListing_(services, settings, id, true, refresh));
     // One level of volume folders inside the series (scope change 2026-11-24), at most 40 and for
@@ -99,6 +120,7 @@ function handleVerified_(request, services, settings, props) {
   const check = checkSendable(file, settings.folderIds, settings.maxBytes, parents);
   if (!check.ok) return renderMessage(ctx, "Can't send this", problemText_(check.reason));
   ctx.seriesId = check.seriesId;
+  ctx.mainNo = settings.folderIds.indexOf(check.mainId) + 1;
 
   if (request.method !== "POST") return renderConfirm({ ...ctx, book: check.book });
 
@@ -182,6 +204,8 @@ function readListing_(services, settings, folderId, withFolders, refresh) {
     return null;
   }
   const slim = {
+    // The folder's own name: a main folder's page and row show it (phase 5).
+    name: String(listing.name || ""),
     folders: (listing.folders || [])
       .filter((folder) => !folder.trashed)
       .map((folder) => ({ id: folder.id, name: folder.name })),
@@ -223,11 +247,33 @@ function stillOnShelf_(services, settings, folderId) {
   );
 }
 
-function readShelf_(services, settings, refresh) {
-  const listings = settings.folderIds.map((id) =>
-    readListing_(services, settings, id, true, refresh),
+// The main folder ID at place m ("1", "2", ... from the URL) in FOLDER_ID, or null.
+function mainIdAt_(settings, m) {
+  if (typeof m !== "string" || !/^[1-9][0-9]?$/.test(m)) return null;
+  return settings.folderIds.find((id, i) => i + 1 === Number(m)) || null;
+}
+
+// Every main folder (FOLDER_ID entry) with its listing, null if it couldn't be read.
+function readMains_(services, settings, refresh) {
+  return settings.folderIds.map((id) => ({
+    id,
+    listing: readListing_(services, settings, id, true, refresh),
+  }));
+}
+
+// One main folder's page: its series and loose books, titled by its name. mainId is in FOLDER_ID.
+function folderPage_(services, settings, ctx, mainId, refresh) {
+  const listing = readListing_(services, settings, mainId, true, refresh);
+  if (!listing) {
+    return ctx.multi
+      ? renderMessage(ctx, "Can't open this folder", "It couldn't be read. Try again later.")
+      : renderFolders({ ...ctx, mains: [], unreadable: 1 });
+  }
+  // Only this folder is read; the others are given as unread so the name's place stays right.
+  const [main] = mainFolders(
+    settings.folderIds.map((id) => ({ id, listing: id === mainId ? listing : null })),
   );
-  return buildShelf(listings, settings.maxBytes);
+  return renderShelf({ ...ctx, main, ...buildShelf([listing], settings.maxBytes) });
 }
 
 // The parent folders needed to place a file that isn't directly in a shelf folder (at most 5:
@@ -291,7 +337,7 @@ function appsScriptServices_() {
           folders.push({ id: sub.getId(), name: sub.getName(), trashed: sub.isTrashed() });
         }
       }
-      return { folders, files, truncated };
+      return { name: folder.getName(), folders, files, truncated };
     },
     getFolder: (id) => {
       try {
@@ -380,9 +426,17 @@ function checkSetup() {
         );
       }
     });
-    const shelf = buildShelf(listings, settings.maxBytes);
+    // Counted per main folder, as the pages show them (series never merge across folders).
+    const shelves = listings.filter(Boolean).map((l) => buildShelf([l], settings.maxBytes));
+    const count = (pick) => shelves.reduce((sum, shelf) => sum + pick(shelf).length, 0);
     console.log(
-      "Shelf: " + shelf.series.length + " series, " + shelf.loose.length + " loose books.",
+      "Shelf: " +
+        count((s) => s.series) +
+        " series, " +
+        count((s) => s.loose) +
+        " loose books in " +
+        shelves.length +
+        (shelves.length === 1 ? " folder." : " folders."),
     );
   }
   console.log("E-mails left today: " + services.remainingQuota());

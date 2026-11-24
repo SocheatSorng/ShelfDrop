@@ -267,9 +267,9 @@ test("main folders: one per readable FOLDER_ID entry, in FOLDER_ID order, by the
   assert.deepEqual(
     plain(app.mainFolders(mains([SHELF_A, "shelf-x", SHELF_B, "shelf-c"], listings))),
     [
-      { id: SHELF_A, name: "Manga" },
-      { id: SHELF_B, name: "Light Novels" },
-      { id: "shelf-c", name: "Manga" },
+      { id: SHELF_A, n: 1, name: "Manga" },
+      { id: SHELF_B, n: 3, name: "Light Novels" },
+      { id: "shelf-c", n: 4, name: "Manga" },
     ],
   );
 });
@@ -280,8 +280,8 @@ test("main folders: a listing without a name (cached before the update, or blank
     { name: "  ", folders: [], files: [] },
   ];
   assert.deepEqual(plain(app.mainFolders(mains([SHELF_A, SHELF_B], listings))), [
-    { id: SHELF_A, name: "Folder 1" },
-    { id: SHELF_B, name: "Folder 2" },
+    { id: SHELF_A, n: 1, name: "Folder 1" },
+    { id: SHELF_B, n: 2, name: "Folder 2" },
   ]);
 });
 

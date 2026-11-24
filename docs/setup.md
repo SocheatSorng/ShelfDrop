@@ -164,7 +164,7 @@ break every link on the Kindle.
 
 3. The **Execution log** should say:
    - `Script Properties look right.` Otherwise it names the properties to fix (never their values).
-   - `Shelf: N series, M loose books.` with your numbers.
+   - `Shelf: N series, M loose books in F folders.` with your numbers.
    - No line `Shelf folder X of Y in FOLDER_ID couldn't be read`. If there is one, folder number X
      in your list isn't shared with the ShelfDrop account as Viewer, or its ID has a typo.
 

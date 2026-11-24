@@ -38,8 +38,8 @@ const FILES = {
 // inside that volume folder (three levels down, ignored);
 // "not-shelf-sub1" is a subfolder of a folder that isn't on the shelf.
 const FOLDERS = {
-  [FOLDER]: { name: "Books", parentIds: ["my-drive-root1"] },
-  [FOLDER_B]: { name: "Books", parentIds: ["my-drive-root2"] },
+  [FOLDER]: { name: "Light Novels", parentIds: ["my-drive-root1"] },
+  [FOLDER_B]: { name: "Manga", parentIds: ["my-drive-root2"] },
   "ser-tales-a01": { name: "Tales", parentIds: [FOLDER] },
   "ser-tales-b01": { name: "tales", parentIds: [FOLDER_B] },
   "ser-other-b01": { name: "Other Series", parentIds: [FOLDER_B] },
@@ -55,6 +55,7 @@ function has(map, id) {
 function listingOf(id) {
   if (!has(FOLDERS, id)) throw new Error("No item with the given ID could be found");
   return {
+    name: FOLDERS[id].name,
     folders: Object.entries(FOLDERS)
       .filter(([, f]) => f.parentIds.includes(id))
       .map(([fid, f]) => ({ id: fid, name: f.name, trashed: false })),
@@ -145,21 +146,61 @@ test("right token but other settings missing: setup page names them, shows no va
   assert.equal(calls.listFolder, 0);
 });
 
-test("the shelf shows series, then loose books from every shelf folder, big ones not linked", () => {
+// Phase 5: the first page lists the main folders (FOLDER_ID) by name, linked by their place in
+// FOLDER_ID; each folder's page shows its own series, then its loose books, big ones not linked.
+test("the first page lists the main folders; each folder page shows its series, then its books", () => {
+  const names = (html) => [...html.matchAll(/class="book[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
   const { page } = run("GET", { t: TOKEN });
-  assert.equal(page.title, "Bookshelf");
-  const names = [...page.html.matchAll(/class="book[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
-  assert.deepEqual(names, [
-    "Other Series",
+  assert.equal(page.title, "ShelfDrop");
+  assert.deepEqual(names(page.html), ["Light Novels", "Manga"]);
+  assert.ok(page.html.includes('href="' + URL + "?t=" + TOKEN + '&amp;m=1">Light Novels</a>'));
+  assert.ok(page.html.includes('href="' + URL + "?t=" + TOKEN + '&amp;m=2">Manga</a>'));
+  const first = run("GET", { t: TOKEN, m: "1" }).page;
+  assert.equal(first.title, "Light Novels");
+  assert.deepEqual(names(first.html), [
     "Tales",
-    "Another Account Book.epub",
     "Huge Artbook.pdf",
     "Sample Series Vol 1.epub",
     "Sample Series Vol 2.epub",
     "Sample Series Vol 10.pdf",
   ]);
-  assert.ok(!page.html.includes("Budget") && !page.html.includes("Private"));
-  assert.ok(!page.html.includes("f=huge-pdf-id00"));
+  assert.ok(!first.html.includes("Budget") && !first.html.includes("Private"));
+  assert.ok(!first.html.includes("f=huge-pdf-id00"));
+  const second = run("GET", { t: TOKEN, m: "2" }).page;
+  assert.equal(second.title, "Manga");
+  assert.deepEqual(names(second.html), ["Other Series", "tales", "Another Account Book.epub"]);
+});
+
+test("a folder page is chosen only by a place in FOLDER_ID, never by an ID from the URL", () => {
+  for (const m of ["0", "3", "01", "1 ", "-1", "1e0", FOLDER, "", "99"]) {
+    const { page, calls } = run("GET", { t: TOKEN, m });
+    assert.equal(page.title, "Not on the shelf", JSON.stringify(m));
+    assert.equal(calls.listFolder, 0, JSON.stringify(m));
+  }
+});
+
+test("with one main folder the first page is that folder's page, with no way back", () => {
+  const one = () => ({ ...PROPS, FOLDER_ID: FOLDER });
+  const { page } = run("GET", { t: TOKEN }, { properties: one });
+  assert.equal(page.title, "Light Novels");
+  assert.ok(page.html.includes(">Tales<") && !page.html.includes("Back to"));
+  assert.ok(page.html.includes('href="' + URL + "?t=" + TOKEN + '&amp;r=1">Refresh</a>'));
+  const series = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { properties: one }).page;
+  assert.ok(
+    series.html.includes('href="' + URL + "?t=" + TOKEN + '">&larr; Back to the folder</a>'),
+  );
+  const dead = run(
+    "GET",
+    { t: TOKEN },
+    {
+      properties: one,
+      listFolder: () => {
+        throw new Error("Access denied");
+      },
+    },
+  ).page;
+  assert.equal(dead.title, "ShelfDrop");
+  assert.ok(dead.html.includes("1 shelf folder couldn&#39;t be read"));
 });
 
 test("GET with a file shows the confirm page and sends nothing", () => {
@@ -377,8 +418,11 @@ test("doGet renders through HtmlService with a title and a viewport tag", () => 
   const { globals, out } = fakeGlobals();
   const ctx = loadSrc(globals);
   ctx.doGet({ parameter: { t: TOKEN } });
-  assert.equal(out.title, "Bookshelf - ShelfDrop");
+  assert.equal(out.title, "ShelfDrop");
   assert.deepEqual(out.meta, [["viewport", "width=device-width, initial-scale=1"]]);
+  assert.ok(out.html.includes(">Light Novels<") && out.html.includes(">Manga<"));
+  ctx.doGet({ parameter: { t: TOKEN, m: "1" } });
+  assert.equal(out.title, "Light Novels - ShelfDrop");
   assert.ok(out.html.includes("Sample Series Vol 10.pdf") && out.html.includes(">Tales<"));
 });
 
@@ -408,7 +452,7 @@ test("checkSetup logs counts and names only, never the address or token", () => 
   loadSrc(globals).checkSetup();
   const log = out.logs.join("\n");
   assert.match(log, /Missing or invalid Script Properties: KINDLE_EMAIL/);
-  assert.match(log, /Shelf: 2 series, 5 loose books/);
+  assert.match(log, /Shelf: 3 series, 5 loose books in 2 folders\./);
   assert.ok(!log.includes(TOKEN));
 });
 
@@ -593,7 +637,7 @@ test("the limit state in Script Properties doesn't disturb the settings", () => 
   const ctx = loadSrc(globals);
   ctx.doPost({ parameter: { t: TOKEN, f: "vol-1-epub-id" } });
   ctx.doGet({ parameter: { t: TOKEN } });
-  assert.equal(out.title, "Bookshelf - ShelfDrop");
+  assert.equal(out.title, "ShelfDrop");
 });
 
 // Security review S2: no raw Apps Script error pages.
@@ -613,7 +657,7 @@ test("unreadable properties: not-found page, even with the right token", () => {
 
 test("a failure after the token check gives a plain page and a redacted log line", () => {
   const cases = [
-    ["listFolder", { t: TOKEN }, "Bookshelf"], // every shelf folder skipped, and noted
+    ["listFolder", { t: TOKEN }, "ShelfDrop"], // every shelf folder skipped, and noted
     ["remainingQuota", { t: TOKEN, f: "vol-1-epub-id" }, "Something went wrong"],
     ["getBlob", { t: TOKEN, f: "vol-1-epub-id" }, "Not sent"],
   ];
@@ -648,6 +692,9 @@ test("redact hides secrets in any letter case", () => {
 test("links use WEB_APP_URL even when Apps Script reports a /dev URL", () => {
   const { globals, out } = fakeGlobals();
   loadSrc(globals).doGet({ parameter: { t: TOKEN } });
+  assert.ok(out.html.includes('href="' + URL + "?t=" + TOKEN + "&amp;m=1"));
+  assert.ok(!out.html.includes("/dev"));
+  loadSrc(globals).doGet({ parameter: { t: TOKEN, m: "1" } });
   assert.ok(out.html.includes('href="' + URL + "?t=" + TOKEN + "&amp;f="));
   assert.ok(!out.html.includes("/dev"));
 });
@@ -666,13 +713,23 @@ test("a missing or /dev WEB_APP_URL shows the setup page, and checkSetup says wh
 });
 
 // Phase 2: series from several accounts.
-test("a series page lists the volumes of every same-named series folder, nothing deeper", () => {
-  const { page } = run("GET", { t: TOKEN, s: "ser-tales-b01" });
-  assert.equal(page.title, "Tales");
-  const names = [...page.html.matchAll(/class="book[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
-  assert.deepEqual(names, ["Tales Vol 3.epub", "Tales Vol 12.pdf", "Volume 5"]);
-  assert.ok(page.html.includes("scan_005.epub") && !page.html.includes("Artbook"));
-  assert.ok(page.html.includes("s=ser-tales-b01&amp;r=1"));
+// Phase 5 (owner's decision): series merge only inside one main folder, never across them.
+test("a series page lists its folder's volumes only, never a same-named series of another folder", () => {
+  const names = (html) => [...html.matchAll(/class="book[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
+  const b = run("GET", { t: TOKEN, s: "ser-tales-b01" }).page;
+  assert.equal(b.title, "tales");
+  assert.deepEqual(names(b.html), ["Tales Vol 12.pdf"]);
+  assert.ok(b.html.includes("s=ser-tales-b01&amp;r=1"));
+  assert.ok(
+    b.html.includes('href="' + URL + "?t=" + TOKEN + '&amp;m=2">&larr; Back to the folder</a>'),
+  );
+  const a = run("GET", { t: TOKEN, s: "ser-tales-a01" }).page;
+  assert.equal(a.title, "Tales");
+  assert.deepEqual(names(a.html), ["Tales Vol 3.epub", "Volume 5"]);
+  assert.ok(a.html.includes("scan_005.epub") && !a.html.includes("Artbook"));
+  assert.ok(
+    a.html.includes('href="' + URL + "?t=" + TOKEN + '&amp;m=1">&larr; Back to the folder</a>'),
+  );
 });
 
 // Security review N6: a series ID from the URL is never trusted.
@@ -728,9 +785,10 @@ test("an unreadable shelf folder is skipped and noted; checkSetup says which one
       },
     },
   );
-  assert.equal(page.title, "Bookshelf");
+  assert.equal(page.title, "ShelfDrop");
   assert.ok(page.html.includes("1 shelf folder couldn&#39;t be read"));
-  assert.ok(page.html.includes("Sample Series Vol 1.epub") && !page.html.includes(FOLDER_B));
+  assert.ok(page.html.includes(">Light Novels<") && !page.html.includes(">Manga<"));
+  assert.ok(!page.html.includes(FOLDER_B));
   const { globals, out } = fakeGlobals({ unreadable: [FOLDER_B] });
   loadSrc(globals).checkSetup();
   assert.match(out.logs.join("\n"), /Shelf folder 2 of 2 in FOLDER_ID couldn't be read/);
@@ -751,23 +809,25 @@ test("the shelf and series listings come from the cache the second time", () => 
   assert.equal(run("GET", { t: TOKEN }, { cache }).calls.listFolder, 2);
   const again = run("GET", { t: TOKEN }, { cache });
   assert.equal(again.calls.listFolder, 0);
-  assert.equal(again.page.title, "Bookshelf");
-  assert.ok(again.page.html.includes(">Tales<"));
-  // the two "Tales" folders and the "Volume 5" folder inside one of them
-  assert.equal(run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache }).calls.listFolder, 3);
+  assert.equal(again.page.title, "ShelfDrop");
+  const folder = run("GET", { t: TOKEN, m: "1" }, { cache });
+  assert.equal(folder.calls.listFolder, 0); // the first page cached it, name included
+  assert.equal(folder.page.title, "Light Novels");
+  // the "Tales" folder and its "Volume 5" folder
+  assert.equal(run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache }).calls.listFolder, 2);
   const series = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache });
   assert.equal(series.calls.listFolder, 0);
-  assert.ok(series.page.html.includes("Tales Vol 12.pdf"));
+  assert.ok(series.page.html.includes("Volume 5"));
   for (const { seconds } of cache.map.values()) assert.equal(seconds, 30 * 60);
 });
 
 test("Refresh reads Drive again and updates the cache", () => {
   const cache = memoryCache();
   run("GET", { t: TOKEN }, { cache });
-  const fresh = run("GET", { t: TOKEN, r: "1" }, { cache });
-  assert.equal(fresh.calls.listFolder, 2);
+  assert.equal(run("GET", { t: TOKEN, r: "1" }, { cache }).calls.listFolder, 2);
+  assert.equal(run("GET", { t: TOKEN, m: "2", r: "1" }, { cache }).calls.listFolder, 1);
   const series = run("GET", { t: TOKEN, s: "ser-tales-a01", r: "1" }, { cache });
-  assert.equal(series.calls.listFolder, 3); // the "Tales" folders and "Volume 5"; the shelf is cached
+  assert.equal(series.calls.listFolder, 2); // "Tales" and "Volume 5"; the main folder is cached
 });
 
 test("the cache keeps only what the pages need: no token, no address, no non-books", () => {
@@ -801,7 +861,8 @@ test("a broken cache or an unreadable folder never breaks the page", () => {
     },
   };
   const { page } = run("GET", { t: TOKEN }, { cache: broken });
-  assert.equal(page.title, "Bookshelf");
+  assert.equal(page.title, "ShelfDrop");
+  assert.equal(run("GET", { t: TOKEN, m: "1" }, { cache: broken }).page.title, "Light Novels");
   const cache = memoryCache();
   run(
     "GET",
@@ -897,6 +958,7 @@ test("a folder listing stops at 300 files and 100 folders and says so", () => {
   const globals = {
     DriveApp: {
       getFolderById: () => ({
+        getName: () => "Huge",
         getFiles: () => iterator(1000, driveFile),
         getFolders: () => iterator(500, driveFolder),
       }),
@@ -908,6 +970,7 @@ test("a folder listing stops at 300 files and 100 folders and says so", () => {
   assert.equal(listing.folders.length, 100);
   assert.equal(listing.truncated, true);
   const cache = memoryCache();
+  assert.equal(listing.name, "Huge");
   run("GET", { t: TOKEN }, { cache, listFolder: () => listing });
   for (const { value } of cache.map.values()) assert.ok(value.length < 100 * 1024);
 });
@@ -1024,7 +1087,7 @@ test("a sent book shows its last send date on its row and its confirm page; othe
     "_sent:tales-5-id-001": "not a time",
   });
   const props = propsWith(state);
-  const shelf = run("GET", { t: TOKEN }, { state, properties: props });
+  const shelf = run("GET", { t: TOKEN, m: "1" }, { state, properties: props });
   assert.deepEqual(marks(shelf.page.html), ["sent 24 Nov"]);
   assert.ok(/Vol 1\.epub[\s\S]*?&#10003; sent 24 Nov[\s\S]*?Vol 2\.epub/.test(shelf.page.html));
   const series = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { state, properties: props });
@@ -1040,7 +1103,7 @@ test("the mark shows at once after a send, though the listing comes from the cac
   const cache = memoryCache();
   const props = propsWith(state);
   assert.deepEqual(
-    marks(run("GET", { t: TOKEN }, { state, cache, properties: props }).page.html),
+    marks(run("GET", { t: TOKEN, m: "1" }, { state, cache, properties: props }).page.html),
     [],
   );
   const later = NOW + 2 * 60 * 60 * 1000; // 21:00 in Cambodia, still the 24th
@@ -1049,7 +1112,11 @@ test("the mark shows at once after a send, though the listing comes from the cac
     { t: TOKEN, f: "vol-2-epub-id" },
     { state, cache, properties: props, now: () => later },
   );
-  const again = run("GET", { t: TOKEN }, { state, cache, properties: props, now: () => later });
+  const again = run(
+    "GET",
+    { t: TOKEN, m: "1" },
+    { state, cache, properties: props, now: () => later },
+  );
   assert.equal(again.calls.listFolder, 0);
   assert.deepEqual(marks(again.page.html), ["sent 24 Nov"]);
 });
@@ -1089,6 +1156,9 @@ test("safe messages: no page shows the address, folder IDs, IDs in text or Googl
     ["file unreadable", "POST", send, { getBlob: boom }],
     ["Drive down", "GET", send, { getFile: boom }],
     ["shelf unreadable", "GET", { t: TOKEN }, { listFolder: boom }],
+    ["folder unreadable", "GET", { t: TOKEN, m: "2" }, { listFolder: boom }],
+    ["unknown folder", "GET", { t: TOKEN, m: "7" }, {}],
+    ["folder ID as m", "GET", { t: TOKEN, m: FOLDER }, {}],
   ];
   for (const [name, method, params, overrides] of cases) {
     const { page } = run(method, params, overrides);
@@ -1110,8 +1180,8 @@ test("safe messages: no page shows the address, folder IDs, IDs in text or Googl
 // Security review SF-1, end to end: a corrupt mark doesn't break the shelf page.
 test("a corrupt _sent: value leaves the page working, with no mark", () => {
   const state = memoryState({ "_sent:vol-1-epub-id": "1e300" });
-  const { page } = run("GET", { t: TOKEN }, { state, properties: propsWith(state) });
-  assert.equal(page.title, "Bookshelf");
+  const { page } = run("GET", { t: TOKEN, m: "1" }, { state, properties: propsWith(state) });
+  assert.equal(page.title, "Light Novels");
   assert.deepEqual(marks(page.html), []);
 });
 
@@ -1161,7 +1231,10 @@ test("safe messages: shelf, series, confirm and Sent pages, and every tab title,
   const props = propsWith(state);
   const cases = [
     ["shelf", "GET", { t: TOKEN }],
+    ["folder", "GET", { t: TOKEN, m: "1" }],
+    ["other folder", "GET", { t: TOKEN, m: "2" }],
     ["series", "GET", { t: TOKEN, s: "ser-tales-a01" }],
+    ["loose book", "GET", { t: TOKEN, f: "b-loose-id-01" }],
     ["confirm", "GET", { t: TOKEN, f: "vol-1-epub-id" }],
     ["sent", "POST", { t: TOKEN, f: "vol-2-epub-id" }],
     ["not found", "GET", { t: "wrong" }],
