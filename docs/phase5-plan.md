@@ -80,3 +80,27 @@ the listings cached by 1.0.0 have no name, and the plan let the page fall back t
 until the cache ran out (up to 30 minutes). A stale cache must never change what the reader sees,
 so cache keys now carry a format version (`LISTING_CACHE_FORMAT`, `v2:`) and 1.0.0's entries are
 never read. Test: a listing cached in the old format is ignored and the names show at once.
+
+## Refinement 2: a page per volume folder with several books (2026-11-24)
+
+### Decisions (owner)
+
+1. A volume folder (inside a series) with **two or more books** is one **bold row** with the count
+   underneath ("Volume 2", "3 books"); tapping it opens its page. A volume folder with **one book**
+   keeps its row: the folder name, with the file name underneath. With none it isn't shown.
+2. The volume page is titled by the folder's name, with "Back to the series" and Refresh; its rows
+   are the file names in natural order, with type, size and sent mark. A book sent from it goes back
+   to the volume page.
+
+### Design
+
+- **Links:** `?t=…&s=<series>&v=<volume folder ID>`. Volume folder IDs, like series IDs, may appear
+  in links (they are not settings). The volume is used only if the series' own listing has it and
+  Drive, read fresh, still puts it in one of the series' folders; the series is checked first as
+  before. Anything else shows "Not on the shelf".
+- **Cost:** a volume page reads the main folders and the series (cached) and that one volume, not
+  every volume of the series.
+- **Back link after a send:** the send check already reads the volume folder fresh; the book count
+  comes from its listing (cached). Two or more books: back to the volume, else to the series.
+- **Tests:** model rows and counts (too-big books count, non-books don't), the volume page, the
+  fresh check (unknown, another series', moved away), the back links, and both leak sweeps.

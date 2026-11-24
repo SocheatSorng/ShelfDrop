@@ -51,14 +51,16 @@ Light Novels/               ← the main folder: this is what you share; its nam
   Another Series/
     Volume 1/               ← or one folder per volume: the row shows "Volume 1",
       any-file-name.pdf        with the file name underneath
-    Volume 2/
-      another-file.epub
+    Volume 2/               ← two or more books: one bold row "Volume 2, 2 books"
+      part 1.pdf               that opens a page listing them
+      part 2.epub
   A single book.epub        ← books here are listed after the series
 ```
 
 - Only **EPUB and PDF** files are listed. Files over 25 MB show "too big to send".
-- Books can be directly in a series folder, in **volume folders** inside it, or both. Folders inside
-  a volume folder are ignored.
+- Books can be directly in a series folder, in **volume folders** inside it, or both. A volume
+  folder with one book shows as that book; with two or more, as one row that opens a page of its
+  books. Folders inside a volume folder are ignored.
 - On the Kindle, the first page lists each account's main folder by its name, in the order of
   `FOLDER_ID`; tap one to see its series and books. With only one main folder, its page opens
   straight away. Folders and series from different accounts are never merged, even with the

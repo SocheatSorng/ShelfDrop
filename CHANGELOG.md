@@ -11,6 +11,8 @@ The first release.
   shows its series and loose books. With one main folder, its page opens straight away. Folders
   and series from different accounts are no longer merged. Links name a folder by its place in
   `FOLDER_ID`, never by its ID.
+- A volume folder with two or more books is one row ("Volume 2", "3 books") that opens a page of
+  its books; a volume folder with one book still shows as that book.
 - `checkSetup` counts series per folder and points at the guide when Script Properties fill up.
 - One setup guide, [docs/setup.md](docs/setup.md), from nothing to a bookmark on the Kindle, with
   updating, changing the token, going back to an earlier version, troubleshooting and another time
