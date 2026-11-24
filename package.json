@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Pick a book from your Google Drive on your Kindle's browser and get it delivered through Send to Kindle.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "commonjs",
   "engines": {
     "node": ">=22"
