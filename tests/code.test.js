@@ -363,6 +363,7 @@ function fakeGlobals({ props = PROPS, url = DEV_URL, lockFree = true, unreadable
         return driveFile(id, FILES[id]);
       },
     },
+    CacheService: { getScriptCache: () => ({ get: () => null, put: () => {} }) },
     MailApp: { sendEmail: (m) => out.sent.push(m), getRemainingDailyQuota: () => 99 },
     Utilities: { newBlob: (text, type, name) => ({ text, type, name }) },
   };
@@ -697,4 +698,84 @@ test("an unreadable shelf folder is skipped and noted; checkSetup says which one
   const { globals, out } = fakeGlobals({ unreadable: [FOLDER_B] });
   loadSrc(globals).checkSetup();
   assert.match(out.logs.join("\n"), /Shelf folder 2 of 2 in FOLDER_ID couldn't be read/);
+});
+
+// Phase 2 decision 3: listings are cached for 30 minutes, with a Refresh link.
+function memoryCache() {
+  const map = new Map();
+  return {
+    map,
+    get: (key) => (map.has(key) ? map.get(key).value : null),
+    put: (key, value, seconds) => map.set(key, { value, seconds }),
+  };
+}
+
+test("the shelf and series listings come from the cache the second time", () => {
+  const cache = memoryCache();
+  assert.equal(run("GET", { t: TOKEN }, { cache }).calls.listFolder, 2);
+  const again = run("GET", { t: TOKEN }, { cache });
+  assert.equal(again.calls.listFolder, 0);
+  assert.equal(again.page.title, "Bookshelf");
+  assert.ok(again.page.html.includes(">Tales<"));
+  assert.equal(run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache }).calls.listFolder, 2);
+  const series = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache });
+  assert.equal(series.calls.listFolder, 0);
+  assert.ok(series.page.html.includes("Tales Vol 12.pdf"));
+  for (const { seconds } of cache.map.values()) assert.equal(seconds, 30 * 60);
+});
+
+test("Refresh reads Drive again and updates the cache", () => {
+  const cache = memoryCache();
+  run("GET", { t: TOKEN }, { cache });
+  const fresh = run("GET", { t: TOKEN, r: "1" }, { cache });
+  assert.equal(fresh.calls.listFolder, 2);
+  const series = run("GET", { t: TOKEN, s: "ser-tales-a01", r: "1" }, { cache });
+  assert.equal(series.calls.listFolder, 2); // the two "Tales" folders; the shelf is cached
+});
+
+test("the cache keeps only what the pages need: no token, no address, no non-books", () => {
+  const cache = memoryCache();
+  run("GET", { t: TOKEN }, { cache });
+  const stored = [...cache.map.values()].map((v) => v.value).join("\n");
+  assert.ok(stored.includes("Sample Series Vol 1.epub"));
+  assert.ok(!stored.includes(TOKEN) && !stored.includes(KINDLE) && !stored.includes("Budget"));
+});
+
+test("sending never trusts the cache: a book moved off the shelf is refused", () => {
+  const cache = memoryCache();
+  run("GET", { t: TOKEN }, { cache });
+  const moved = { ...FILES["vol-1-epub-id"], parentIds: ["other-folder-01"] };
+  const { page, calls } = run(
+    "POST",
+    { t: TOKEN, f: "vol-1-epub-id" },
+    { cache, getFile: (id) => ({ id, trashed: false, ...moved }) },
+  );
+  assert.equal(page.title, "Can't send this");
+  assert.equal(calls.sent.length, 0);
+});
+
+test("a broken cache or an unreadable folder is never cached and never breaks the page", () => {
+  const broken = {
+    get: () => {
+      throw new Error("cache down");
+    },
+    put: () => {
+      throw new Error("too big");
+    },
+  };
+  const { page } = run("GET", { t: TOKEN }, { cache: broken });
+  assert.equal(page.title, "Bookshelf");
+  const cache = memoryCache();
+  run(
+    "GET",
+    { t: TOKEN },
+    {
+      cache,
+      listFolder: (id) => {
+        if (id === FOLDER_B) throw new Error("Access denied");
+        return listingOf(id);
+      },
+    },
+  );
+  assert.equal(cache.map.size, 1);
 });

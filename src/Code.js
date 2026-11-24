@@ -46,14 +46,15 @@ function handleVerified_(request, services, settings) {
   const ctx = { appUrl: settings.webAppUrl, token: settings.token };
 
   if (params.f === undefined) {
-    const shelf = readShelf_(services, settings);
+    const refresh = params.r === "1";
+    const shelf = readShelf_(services, settings, refresh && params.s === undefined);
     if (params.s === undefined) return renderShelf({ ...ctx, ...shelf });
     // Only a series ID the shelf listing itself produced is used (review N6).
     const series = findSeries(shelf, params.s);
     if (!series) {
       return renderMessage(ctx, "Not on the shelf", "This series isn't on the shelf any more.");
     }
-    const listings = series.ids.map((id) => readListing_(services, settings, id, false));
+    const listings = series.ids.map((id) => readListing_(services, settings, id, false, refresh));
     return renderSeries({
       ...ctx,
       series,
@@ -117,19 +118,58 @@ function noteFailure_(services, settings, label, error) {
   }
 }
 
+var LISTING_CACHE_SECONDS = 30 * 60;
+
 // A folder's listing, or null if it can't be read (unshared, deleted, Drive down). The failure is
 // noted for checkSetup, so one unshared account doesn't hide the rest of the shelf.
-function readListing_(services, settings, folderId, withFolders) {
+// Listings are cached (books and folders only) unless refresh is set; failures are never cached.
+// The cache only feeds the lists: the send check always reads Drive.
+function readListing_(services, settings, folderId, withFolders, refresh) {
+  const key = (withFolders ? "dir+:" : "dir:") + folderId;
+  if (!refresh) {
+    const cached = cacheGet_(services, key);
+    if (cached) return cached;
+  }
+  let listing;
   try {
-    return services.listFolder(folderId, withFolders);
+    listing = services.listFolder(folderId, withFolders);
   } catch (error) {
     noteFailure_(services, settings, "folder unreadable", error);
     return null;
   }
+  const slim = {
+    folders: (listing.folders || [])
+      .filter((folder) => !folder.trashed)
+      .map((folder) => ({ id: folder.id, name: folder.name })),
+    files: (listing.files || [])
+      .filter((file) => !file.trashed && isBookFile(file))
+      .map((file) => ({ id: file.id, name: file.name, size: file.size, mimeType: file.mimeType })),
+  };
+  cachePut_(services, key, slim);
+  return slim;
 }
 
-function readShelf_(services, settings) {
-  const listings = settings.folderIds.map((id) => readListing_(services, settings, id, true));
+function cacheGet_(services, key) {
+  try {
+    const text = services.cache && services.cache.get(key);
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null; // a cache problem only costs a Drive read
+  }
+}
+
+function cachePut_(services, key, value) {
+  try {
+    if (services.cache) services.cache.put(key, JSON.stringify(value), LISTING_CACHE_SECONDS);
+  } catch {
+    // too big for the cache (100 KB per entry) or the cache is down: the page still works
+  }
+}
+
+function readShelf_(services, settings, refresh) {
+  const listings = settings.folderIds.map((id) =>
+    readListing_(services, settings, id, true, refresh),
+  );
   return buildShelf(listings, settings.maxBytes);
 }
 
@@ -201,6 +241,7 @@ function appsScriptServices_() {
       }
     },
     getBlob: (id) => DriveApp.getFileById(id).getBlob(),
+    cache: CacheService.getScriptCache(),
     sendMail: (message) => MailApp.sendEmail(message),
     remainingQuota: () => MailApp.getRemainingDailyQuota(),
     log: (text) => console.log(text),
@@ -250,7 +291,7 @@ function checkSetup() {
   );
   if (!settings.problems.includes("FOLDER_ID")) {
     const ids = settings.folderIds;
-    const listings = ids.map((id) => readListing_(services, settings, id, true));
+    const listings = ids.map((id) => readListing_(services, settings, id, true, true));
     listings.forEach((listing, i) => {
       if (!listing) {
         console.log(

@@ -11,6 +11,7 @@ const appsScriptGlobals = {
   HtmlService: "readonly",
   PropertiesService: "readonly",
   LockService: "readonly",
+  CacheService: "readonly",
   Utilities: "readonly",
   Logger: "readonly",
   console: "readonly",
