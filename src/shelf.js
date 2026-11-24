@@ -54,24 +54,27 @@ function folderLabel(folder) {
 }
 
 // Where a file sits on the shelf, with every link checked against folders read fresh from Drive
-// (never from the URL):
-//   { seriesId: null }               a loose book directly in a shelf folder
-//   { seriesId }                     a book directly in a series folder (parent is a shelf folder)
-//   { seriesId, label }              a book in a volume folder (parent is a series folder)
-//   null                             anywhere else, deeper, trashed, or a folder couldn't be read
+// (never from the URL). mainId is the shelf folder (main folder) it is under:
+//   { mainId, seriesId: null }         a loose book directly in a shelf folder
+//   { mainId, seriesId }               a book directly in a series folder (parent is a shelf folder)
+//   { mainId, seriesId, label }        a book in a volume folder (parent is a series folder)
+//   null                               anywhere else, deeper, trashed, or a folder couldn't be read
 function locateFile(file, shelfIds, folders) {
   if (!file || file.trashed) return null;
   const parents = file.parentIds || [];
-  if (parents.some((id) => shelfIds.includes(id))) return { seriesId: null };
+  const shelfParent = (item) => (item.parentIds || []).find((id) => shelfIds.includes(id));
+  const loose = shelfParent(file);
+  if (loose) return { mainId: loose, seriesId: null };
   const known = (folders || []).filter((folder) => folder && !folder.trashed);
   const byId = (id) => known.find((folder) => folder.id === id);
-  const isSeries = (folder) => (folder.parentIds || []).some((id) => shelfIds.includes(id));
+  const isSeries = (folder) => Boolean(shelfParent(folder));
   const parentFolders = parents.map(byId).filter(Boolean);
   const series = parentFolders.find(isSeries);
-  if (series) return { seriesId: series.id };
+  if (series) return { mainId: shelfParent(series), seriesId: series.id };
   for (const volume of parentFolders) {
     const owner = (volume.parentIds || []).map(byId).find((folder) => folder && isSeries(folder));
-    if (owner) return { seriesId: owner.id, label: folderLabel(volume) };
+    if (owner)
+      return { mainId: shelfParent(owner), seriesId: owner.id, label: folderLabel(volume) };
   }
   return null;
 }
@@ -88,7 +91,42 @@ function checkSendable(file, shelfIds, maxBytes, folders) {
   if (!where) return { ok: false, reason: "not-found" };
   if (!isBookFile(file)) return { ok: false, reason: "not-a-book" };
   if (!(file.size <= maxBytes)) return { ok: false, reason: "too-big" };
-  return { ok: true, book: toBook(file, maxBytes, where.label), seriesId: where.seriesId };
+  return {
+    ok: true,
+    book: toBook(file, maxBytes, where.label),
+    seriesId: where.seriesId,
+    mainId: where.mainId,
+  };
+}
+
+// The main folders are the folders in FOLDER_ID. mains is [{ id, listing }] in FOLDER_ID order,
+// listing null when the folder couldn't be read.
+
+// The rows of the first page, in FOLDER_ID order so the owner chooses it: [{ id, name }]. Each is
+// its own row, even with the same name as another (owner's decision, 2026-11-24). A folder that
+// couldn't be read is left out (the page counts it). A listing without a name (cached before
+// names were kept, or blank) shows its place in FOLDER_ID.
+function mainFolders(mains) {
+  return (mains || [])
+    .map((main, i) => {
+      if (!main.listing) return null;
+      const name = String(main.listing.name || "").trim();
+      return { id: main.id, name: name || "Folder " + (i + 1) };
+    })
+    .filter(Boolean);
+}
+
+// The main folder whose listing has this series folder, or null. Only an ID a listing itself
+// produced is ever used (review N6).
+function findMainOfSeries(mains, seriesId) {
+  if (typeof seriesId !== "string" || !seriesId) return null;
+  return (
+    (mains || []).find(
+      (main) =>
+        main.listing &&
+        (main.listing.folders || []).some((folder) => folder.id === seriesId && !folder.trashed),
+    ) || null
+  );
 }
 
 // Series names match ignoring case and extra spaces, so "Isekai Tales" in one account and

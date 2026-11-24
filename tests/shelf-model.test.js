@@ -251,3 +251,68 @@ test("send check: deeper files, trashed links and folders that aren't real paren
     });
   }
 });
+
+// Phase 5, refinement 1: a page per main folder (each folder in FOLDER_ID).
+function mains(ids, listings) {
+  return ids.map((id, i) => ({ id, listing: listings[i] }));
+}
+
+test("main folders: one per readable FOLDER_ID entry, in FOLDER_ID order, by their own names", () => {
+  const listings = [
+    { name: "Manga", folders: [], files: [] },
+    null, // couldn't be read: left out
+    { name: "  Light Novels ", folders: [], files: [] },
+    { name: "Manga", folders: [], files: [] }, // same name in another account: never merged
+  ];
+  assert.deepEqual(
+    plain(app.mainFolders(mains([SHELF_A, "shelf-x", SHELF_B, "shelf-c"], listings))),
+    [
+      { id: SHELF_A, name: "Manga" },
+      { id: SHELF_B, name: "Light Novels" },
+      { id: "shelf-c", name: "Manga" },
+    ],
+  );
+});
+
+test("main folders: a listing without a name (cached before the update, or blank) shows its place", () => {
+  const listings = [
+    { folders: [], files: [] },
+    { name: "  ", folders: [], files: [] },
+  ];
+  assert.deepEqual(plain(app.mainFolders(mains([SHELF_A, SHELF_B], listings))), [
+    { id: SHELF_A, name: "Folder 1" },
+    { id: SHELF_B, name: "Folder 2" },
+  ]);
+});
+
+test("main folders: a series is found in the main folder whose listing has it, else null", () => {
+  const all = mains(
+    [SHELF_A, "shelf-x", SHELF_B],
+    [
+      { name: "A", folders: [folder("ser-1", "One", SHELF_A)], files: [] },
+      null,
+      { name: "B", folders: [folder("ser-2", "One", SHELF_B)], files: [] },
+    ],
+  );
+  assert.equal(app.findMainOfSeries(all, "ser-1").id, SHELF_A);
+  assert.equal(app.findMainOfSeries(all, "ser-2").id, SHELF_B);
+  assert.equal(app.findMainOfSeries(all, "ser-9"), null);
+  assert.equal(app.findMainOfSeries(all, ""), null);
+  assert.equal(app.findMainOfSeries(all, undefined), null);
+  const trashed = mains(
+    [SHELF_A],
+    [{ name: "A", folders: [folder("ser-1", "One", SHELF_A, { trashed: true })] }],
+  );
+  assert.equal(app.findMainOfSeries(trashed, "ser-1"), null);
+});
+
+test("send check: the result names the book's main folder, for a loose book, series or volume", () => {
+  const shelfIds = [SHELF_A, SHELF_B];
+  assert.equal(app.checkSendable(book("A.epub", SHELF_B), shelfIds, LIMIT, []).mainId, SHELF_B);
+  const series = folder("ser-1", "One", SHELF_A);
+  const inSeries = app.checkSendable(book("One 1.epub", "ser-1"), shelfIds, LIMIT, [series]);
+  assert.equal(inSeries.mainId, SHELF_A);
+  const volume = folder("vol-2", "Volume 2", "ser-1");
+  const inVolume = app.checkSendable(book("x.pdf", "vol-2"), shelfIds, LIMIT, [volume, series]);
+  assert.equal(inVolume.mainId, SHELF_A);
+});
