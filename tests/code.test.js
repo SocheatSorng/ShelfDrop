@@ -7,10 +7,16 @@ const MB = 1024 * 1024;
 const TOKEN = "test-token-0123456789abcdefghijklmnop";
 const KINDLE = "yourname@kindle.com";
 const FOLDER = "folder-test-0001";
+const FOLDER_B = "folder-test-0002"; // a second account's shelf folder
 const URL = "https://script.google.com/macros/s/" + "AKfy" + "cb" + "x".repeat(40) + "/exec";
 const DEV_URL = "https://script.google.com/macros/s/" + "AKfy" + "cb" + "d".repeat(40) + "/dev";
 
-const PROPS = { FOLDER_ID: FOLDER, KINDLE_EMAIL: KINDLE, ACCESS_TOKEN: TOKEN, WEB_APP_URL: URL };
+const PROPS = {
+  FOLDER_ID: FOLDER + "," + FOLDER_B,
+  KINDLE_EMAIL: KINDLE,
+  ACCESS_TOKEN: TOKEN,
+  WEB_APP_URL: URL,
+};
 
 const FILES = {
   "vol-1-epub-id": { name: "Sample Series Vol 1.epub", size: 2 * MB, parentIds: [FOLDER] },
@@ -19,7 +25,41 @@ const FILES = {
   "huge-pdf-id00": { name: "Huge Artbook.pdf", size: 40 * MB, parentIds: [FOLDER] },
   "sheet-xlsx-id": { name: "Budget.xlsx", size: MB, parentIds: [FOLDER] },
   "private-doc-id": { name: "Private.pdf", size: MB, parentIds: ["other-folder-01"] },
+  "b-loose-id-01": { name: "Another Account Book.epub", size: MB, parentIds: [FOLDER_B] },
+  "tales-3-id-001": { name: "Tales Vol 3.epub", size: MB, parentIds: ["ser-tales-a01"] },
+  "tales-12-id-01": { name: "Tales Vol 12.pdf", size: MB, parentIds: ["ser-tales-b01"] },
+  "tales-x-id-001": { name: "Tales Artbook.pdf", size: MB, parentIds: ["ser-extras-01"] },
+  "other-1-id-001": { name: "Other 1.epub", size: MB, parentIds: ["ser-other-b01"] },
+  "private-2-id01": { name: "Private 2.epub", size: MB, parentIds: ["not-shelf-sub1"] },
 };
+
+// Series folders: "Tales" exists in both accounts; "Extras" sits inside a series (two levels down);
+// "not-shelf-sub1" is a subfolder of a folder that isn't on the shelf.
+const FOLDERS = {
+  [FOLDER]: { name: "Books", parentIds: ["my-drive-root1"] },
+  [FOLDER_B]: { name: "Books", parentIds: ["my-drive-root2"] },
+  "ser-tales-a01": { name: "Tales", parentIds: [FOLDER] },
+  "ser-tales-b01": { name: "tales", parentIds: [FOLDER_B] },
+  "ser-other-b01": { name: "Other Series", parentIds: [FOLDER_B] },
+  "ser-extras-01": { name: "Extras", parentIds: ["ser-tales-a01"] },
+  "not-shelf-sub1": { name: "Private stuff", parentIds: ["other-folder-01"] },
+};
+
+function has(map, id) {
+  return Object.prototype.hasOwnProperty.call(map, id);
+}
+
+function listingOf(id) {
+  if (!has(FOLDERS, id)) throw new Error("No item with the given ID could be found");
+  return {
+    folders: Object.entries(FOLDERS)
+      .filter(([, f]) => f.parentIds.includes(id))
+      .map(([fid, f]) => ({ id: fid, name: f.name, trashed: false })),
+    files: Object.entries(FILES)
+      .filter(([, f]) => f.parentIds.includes(id))
+      .map(([fid, f]) => ({ id: fid, trashed: false, ...f })),
+  };
+}
 
 // An in-memory stand-in for Script Properties used as state.
 function memoryState(initial = {}) {
@@ -35,14 +75,16 @@ function memoryState(initial = {}) {
 const NOW = Date.UTC(2026, 10, 24, 12, 0, 0);
 
 function fakeServices(overrides = {}) {
-  const calls = { listFolder: 0, getFile: 0, sent: [], logs: [], locks: 0 };
+  const calls = { listFolder: 0, getFile: 0, getFolder: 0, sent: [], logs: [], locks: 0 };
   const services = {
     properties: () => ({ ...PROPS }),
     listFolder: (id) => {
       calls.listFolder++;
-      return Object.entries(FILES)
-        .filter(([, f]) => f.parentIds.includes(id))
-        .map(([fid, f]) => ({ id: fid, trashed: false, ...f }));
+      return listingOf(id);
+    },
+    getFolder: (id) => {
+      calls.getFolder++;
+      return has(FOLDERS, id) ? { id, trashed: false, ...FOLDERS[id] } : null;
     },
     getFile: (id) => {
       calls.getFile++;
@@ -100,11 +142,14 @@ test("right token but other settings missing: setup page names them, shows no va
   assert.equal(calls.listFolder, 0);
 });
 
-test("the list shows the folder's books in natural order, big ones not linked", () => {
+test("the shelf shows series, then loose books from every shelf folder, big ones not linked", () => {
   const { page } = run("GET", { t: TOKEN });
-  assert.equal(page.title, "Books");
+  assert.equal(page.title, "Bookshelf");
   const names = [...page.html.matchAll(/class="book[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
   assert.deepEqual(names, [
+    "Other Series",
+    "Tales",
+    "Another Account Book.epub",
     "Huge Artbook.pdf",
     "Sample Series Vol 1.epub",
     "Sample Series Vol 2.epub",
@@ -233,7 +278,7 @@ test("the old diag page is gone", () => {
 
 // The real entry points, with fake Apps Script services in the global scope.
 // ScriptApp answers with the /dev URL, as it does when run from the editor: it must never be used.
-function fakeGlobals({ props = PROPS, url = DEV_URL, lockFree = true } = {}) {
+function fakeGlobals({ props = PROPS, url = DEV_URL, lockFree = true, unreadable = [] } = {}) {
   const out = {
     html: null,
     title: null,
@@ -294,14 +339,25 @@ function fakeGlobals({ props = PROPS, url = DEV_URL, lockFree = true } = {}) {
     },
     ScriptApp: { getService: () => ({ getUrl: () => url }) },
     DriveApp: {
-      getFolderById: (id) => ({
-        getFiles: () =>
-          iterator(
-            Object.entries(FILES)
-              .filter(([, f]) => f.parentIds.includes(id))
-              .map(([fid, f]) => driveFile(fid, f)),
-          ),
-      }),
+      getFolderById: (id) => {
+        if (!has(FOLDERS, id) || unreadable.includes(id)) throw new Error("No item");
+        const listing = listingOf(id);
+        return {
+          getId: () => id,
+          getName: () => FOLDERS[id].name,
+          isTrashed: () => false,
+          getParents: () => iterator(FOLDERS[id].parentIds.map((pid) => ({ getId: () => pid }))),
+          getFiles: () => iterator(listing.files.map((f) => driveFile(f.id, f))),
+          getFolders: () =>
+            iterator(
+              listing.folders.map((f) => ({
+                getId: () => f.id,
+                getName: () => f.name,
+                isTrashed: () => false,
+              })),
+            ),
+        };
+      },
       getFileById: (id) => {
         if (!Object.prototype.hasOwnProperty.call(FILES, id)) throw new Error("No item");
         return driveFile(id, FILES[id]);
@@ -317,9 +373,9 @@ test("doGet renders through HtmlService with a title and a viewport tag", () => 
   const { globals, out } = fakeGlobals();
   const ctx = loadSrc(globals);
   ctx.doGet({ parameter: { t: TOKEN } });
-  assert.equal(out.title, "Books - ShelfDrop");
+  assert.equal(out.title, "Bookshelf - ShelfDrop");
   assert.deepEqual(out.meta, [["viewport", "width=device-width, initial-scale=1"]]);
-  assert.ok(out.html.includes("Sample Series Vol 10.pdf"));
+  assert.ok(out.html.includes("Sample Series Vol 10.pdf") && out.html.includes(">Tales<"));
 });
 
 test("doPost sends through MailApp; doGet without parameters is not found", () => {
@@ -348,7 +404,7 @@ test("checkSetup logs counts and names only, never the address or token", () => 
   loadSrc(globals).checkSetup();
   const log = out.logs.join("\n");
   assert.match(log, /Missing or invalid Script Properties: KINDLE_EMAIL/);
-  assert.match(log, /Books found in the folder: 4/);
+  assert.match(log, /Shelf: 2 series, 5 loose books/);
   assert.ok(!log.includes(TOKEN));
 });
 
@@ -509,7 +565,7 @@ test("the limit state in Script Properties doesn't disturb the settings", () => 
   const ctx = loadSrc(globals);
   ctx.doPost({ parameter: { t: TOKEN, f: "vol-1-epub-id" } });
   ctx.doGet({ parameter: { t: TOKEN } });
-  assert.equal(out.title, "Books - ShelfDrop");
+  assert.equal(out.title, "Bookshelf - ShelfDrop");
 });
 
 // Security review S2: no raw Apps Script error pages.
@@ -529,7 +585,7 @@ test("unreadable properties: not-found page, even with the right token", () => {
 
 test("a failure after the token check gives a plain page and a redacted log line", () => {
   const cases = [
-    ["listFolder", { t: TOKEN }, "Something went wrong"],
+    ["listFolder", { t: TOKEN }, "Bookshelf"], // every shelf folder skipped, and noted
     ["remainingQuota", { t: TOKEN, f: "vol-1-epub-id" }, "Something went wrong"],
     ["getBlob", { t: TOKEN, f: "vol-1-epub-id" }, "Not sent"],
   ];
@@ -579,4 +635,66 @@ test("a missing or /dev WEB_APP_URL shows the setup page, and checkSetup says wh
   const { globals, out } = fakeGlobals({ props: { ...PROPS, WEB_APP_URL: "" } });
   loadSrc(globals).checkSetup();
   assert.match(out.logs.join("\n"), /Set WEB_APP_URL .* ends with \/exec/);
+});
+
+// Phase 2: series from several accounts.
+test("a series page lists the volumes of every same-named series folder, nothing deeper", () => {
+  const { page } = run("GET", { t: TOKEN, s: "ser-tales-b01" });
+  assert.equal(page.title, "Tales");
+  const names = [...page.html.matchAll(/class="book[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(names, ["Tales Vol 3.epub", "Tales Vol 12.pdf"]);
+  assert.ok(page.html.includes("s=ser-tales-b01&amp;r=1"));
+});
+
+// Security review N6: a series ID from the URL is never trusted.
+test("a series ID the shelf didn't list shows 'not on the shelf' and lists nothing", () => {
+  for (const s of [FOLDER, "ser-extras-01", "not-shelf-sub1", "no-such-folder", "", "../x"]) {
+    const { page, calls } = run("GET", { t: TOKEN, s });
+    assert.equal(page.title, "Not on the shelf", s);
+    assert.ok(!page.html.includes("Artbook") && !page.html.includes("Private"), s);
+    assert.equal(calls.listFolder, 2, s); // only the two shelf folders
+  }
+});
+
+test("a volume in a series sends, and its pages go back to its series", () => {
+  const back = 's=ser-tales-b01">&larr; Back to the series';
+  const confirm = run("GET", { t: TOKEN, f: "tales-12-id-01" });
+  assert.equal(confirm.page.title, "Send to Kindle?");
+  assert.ok(confirm.page.html.includes(back));
+  const sent = run("POST", { t: TOKEN, f: "tales-12-id-01" });
+  assert.equal(sent.page.title, "Sent");
+  assert.equal(sent.calls.sent.length, 1);
+  assert.ok(sent.page.html.includes(back));
+});
+
+test("files two levels down or under a folder off the shelf are refused", () => {
+  for (const f of ["tales-x-id-001", "private-2-id01"]) {
+    const { page, calls } = run("POST", { t: TOKEN, f });
+    assert.equal(page.title, "Can't send this", f);
+    assert.equal(calls.sent.length, 0, f);
+  }
+});
+
+test("a loose book needs no folder lookups", () => {
+  const { calls } = run("GET", { t: TOKEN, f: "vol-1-epub-id" });
+  assert.equal(calls.getFolder, 0);
+});
+
+test("an unreadable shelf folder is skipped and noted; checkSetup says which one", () => {
+  const { page } = run(
+    "GET",
+    { t: TOKEN },
+    {
+      listFolder: (id) => {
+        if (id === FOLDER_B) throw new Error("Access denied");
+        return listingOf(id);
+      },
+    },
+  );
+  assert.equal(page.title, "Bookshelf");
+  assert.ok(page.html.includes("1 shelf folder couldn&#39;t be read"));
+  assert.ok(page.html.includes("Sample Series Vol 1.epub") && !page.html.includes(FOLDER_B));
+  const { globals, out } = fakeGlobals({ unreadable: [FOLDER_B] });
+  loadSrc(globals).checkSetup();
+  assert.match(out.logs.join("\n"), /Shelf folder 2 of 2 in FOLDER_ID couldn't be read/);
 });

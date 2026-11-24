@@ -90,12 +90,21 @@ test("shelf: sizes read well", () => {
 const URL = "https://script.google.com/macros/s/FAKE/exec";
 const TOKEN = "test-token-0123456789abcdefghijklmnop";
 const ctx = { appUrl: URL, token: TOKEN };
+const SERIES = { name: "Sample Series", ids: ["ser-1", "ser-2"] };
+
+function seriesPage(volumes, extra = {}) {
+  return app.renderSeries({ ...ctx, series: SERIES, seriesId: "ser-2", volumes, ...extra });
+}
+
+function shelfPage(extra = {}) {
+  return app.renderShelf({ ...ctx, series: [SERIES], loose: [], unreadable: 0, ...extra });
+}
 
 test("pages: names from Drive are escaped everywhere", () => {
   const nasty = `<img src=x onerror="alert(1)">'&.epub`;
   const book = { ...app.listBooks([file(nasty)], LIMIT)[0] };
   for (const out of [
-    app.renderList({ ...ctx, books: [book] }),
+    seriesPage([book]),
     app.renderConfirm({ ...ctx, book }),
     app.renderSent({ ...ctx, book }),
   ]) {
@@ -107,10 +116,11 @@ test("pages: names from Drive are escaped everywhere", () => {
 test("pages: every link and form targets the top window (HtmlService iframe)", () => {
   const book = app.listBooks([file("a.epub")], LIMIT)[0];
   const pages = [
-    app.renderList({ ...ctx, books: [book] }),
+    seriesPage([book]),
     app.renderConfirm({ ...ctx, book }),
     app.renderSent({ ...ctx, book }),
     app.renderMessage(ctx, "Oops", "Text"),
+    shelfPage({ loose: [book] }),
   ];
   for (const { html, title } of pages) {
     const opened = html.match(/<(a|form)\s/g) || [];
@@ -122,21 +132,22 @@ test("pages: every link and form targets the top window (HtmlService iframe)", (
 
 test("pages: list links carry the token and file ID, URL-encoded", () => {
   const book = app.listBooks([file("a.epub")], LIMIT)[0];
-  const { html } = app.renderList({ ...ctx, books: [book] });
+  const { html } = seriesPage([book]);
   assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;f=id-aepub"`));
   assert.equal(app.appLink(URL, { t: "a b&c", f: "x" }), URL + "?t=a%20b%26c&f=x");
 });
 
 test("pages: too-big books are shown but not linked", () => {
   const book = app.listBooks([file("huge.pdf", 40 * MB)], LIMIT)[0];
-  const { html } = app.renderList({ ...ctx, books: [book] });
+  const { html } = seriesPage([book]);
   assert.ok(html.includes("too big to send"));
   assert.ok(!html.includes("f=id-hugepdf"));
 });
 
 test("pages: no page links to the old browser check or runs a script", () => {
-  const { html } = app.renderList({ ...ctx, books: [] });
-  assert.ok(!html.includes("diag") && !html.includes("<script"));
+  for (const { html } of [seriesPage([]), shelfPage()]) {
+    assert.ok(!html.includes("diag") && !html.includes("<script"));
+  }
   assert.equal(app.renderDiag, undefined);
 });
 
@@ -159,7 +170,8 @@ test("pages: the not-found page reveals nothing and links nowhere", () => {
 });
 
 test("pages: the empty shelf and setup pages read sensibly", () => {
-  assert.ok(app.renderList({ ...ctx, books: [] }).html.includes("No EPUB or PDF books"));
+  assert.ok(seriesPage([]).html.includes("No books yet"));
+  assert.ok(shelfPage({ series: [] }).html.includes("No series or books"));
   const { html } = app.renderSetupNeeded(["KINDLE_EMAIL"]);
   assert.ok(html.includes("KINDLE_EMAIL"));
 });
@@ -184,4 +196,47 @@ test("shelf: Google-native files and empty files are never books, whatever their
 test("shelf: an EPUB uploaded with a generic type still counts", () => {
   const f = file("Odd upload.epub", MB, { mimeType: "application/octet-stream" });
   assert.equal(app.checkSendable(f, [FOLDER], LIMIT).ok, true);
+});
+
+test("pages: the shelf links each series by its first folder ID, then lists loose books", () => {
+  const loose = app.listBooks([file("Loose One.epub")], LIMIT);
+  const { title, html } = shelfPage({ loose });
+  assert.equal(title, "Bookshelf");
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-1">Sample Series</a>`));
+  assert.ok(html.indexOf("Sample Series") < html.indexOf("<h2>Books</h2>"));
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;f=id-LooseOneepub"`));
+  assert.ok(!shelfPage().html.includes("<h2>Books</h2>"));
+});
+
+test("pages: the shelf says when a shelf folder couldn't be read, without its ID", () => {
+  assert.ok(shelfPage({ unreadable: 1 }).html.includes("1 shelf folder couldn&#39;t be read"));
+  assert.ok(shelfPage({ unreadable: 2 }).html.includes("2 shelf folders couldn&#39;t be read"));
+  assert.ok(!shelfPage().html.includes("couldn"));
+});
+
+test("pages: shelf and series pages have a Refresh link; the series page goes back to the shelf", () => {
+  assert.ok(shelfPage().html.includes(`href="${URL}?t=${TOKEN}&amp;r=1">Refresh</a>`));
+  const { title, html } = seriesPage([]);
+  assert.equal(title, "Sample Series");
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-2&amp;r=1">Refresh</a>`));
+  assert.ok(html.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the shelf</a>`));
+});
+
+test("pages: confirm and sent pages go back to the book's series, or to the shelf", () => {
+  const book = app.listBooks([file("a.epub")], LIMIT)[0];
+  for (const render of [app.renderConfirm, app.renderSent]) {
+    const inSeries = render({ ...ctx, book, seriesId: "ser-2" }).html;
+    assert.ok(
+      inSeries.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-2">&larr; Back to the series</a>`),
+    );
+    const loose = render({ ...ctx, book, seriesId: null }).html;
+    assert.ok(loose.includes(`href="${URL}?t=${TOKEN}">&larr; Back to the shelf</a>`));
+  }
+});
+
+test("pages: series names are escaped on the shelf and as the series page title", () => {
+  const nasty = { name: '<b onclick="x">&</b>', ids: ["ser-1"] };
+  assert.ok(!shelfPage({ series: [nasty] }).html.includes("<b "));
+  const page = app.renderSeries({ ...ctx, series: nasty, seriesId: "ser-1", volumes: [] });
+  assert.ok(!page.html.includes("<b "));
 });

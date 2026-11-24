@@ -6,6 +6,7 @@ var PAGE_CSS = [
   "body{margin:0;background:#fff;color:#000;font-family:Georgia,serif;font-size:20px;line-height:1.4}",
   "main{padding:12px 16px}",
   "h1{font-size:26px;margin:0 0 12px}",
+  "h2{font-size:22px;margin:20px 0 4px}",
   "ul{list-style:none;margin:0;padding:0}",
   "li{border-bottom:2px solid #000}",
   ".book{display:block;padding:14px 4px;min-height:48px;color:#000;text-decoration:none}",
@@ -41,11 +42,25 @@ function page(title, body) {
   };
 }
 
+// Back to the book's series when it has one (a checked folder ID), otherwise to the shelf.
 function backLink(ctx) {
+  const toSeries = Boolean(ctx.seriesId);
+  const params = toSeries ? { t: ctx.token, s: ctx.seriesId } : { t: ctx.token };
   return (
     '<p><a class="back" target="_top" href="' +
-    escapeHtml(appLink(ctx.appUrl, { t: ctx.token })) +
-    '">&larr; Back to the books</a></p>'
+    escapeHtml(appLink(ctx.appUrl, params)) +
+    '">&larr; Back to the ' +
+    (toSeries ? "series" : "shelf") +
+    "</a></p>"
+  );
+}
+
+// Reloads a listing from Drive instead of the cache, for a book that was just added.
+function refreshLink(ctx, params) {
+  return (
+    '<p><a class="back" target="_top" href="' +
+    escapeHtml(appLink(ctx.appUrl, { t: ctx.token, ...params, r: "1" })) +
+    '">Refresh</a></p>'
   );
 }
 
@@ -53,32 +68,70 @@ function bookMeta(book) {
   return book.kind.toUpperCase() + " &middot; " + escapeHtml(formatSize(book.size));
 }
 
-function renderList(ctx) {
-  if (!ctx.books.length) {
-    return page("Books", "<p>No EPUB or PDF books in this folder.</p>");
-  }
-  const items = ctx.books.map((book) => {
-    if (book.tooBig) {
-      return (
-        '<li><span class="book off">' +
-        escapeHtml(book.name) +
-        '<span class="meta">' +
-        bookMeta(book) +
-        " &middot; too big to send</span></span></li>"
-      );
-    }
-    const href = appLink(ctx.appUrl, { t: ctx.token, f: book.id });
+function bookItem(ctx, book) {
+  if (book.tooBig) {
     return (
-      '<li><a class="book" target="_top" href="' +
-      escapeHtml(href) +
-      '">' +
+      '<li><span class="book off">' +
       escapeHtml(book.name) +
       '<span class="meta">' +
       bookMeta(book) +
-      "</span></a></li>"
+      " &middot; too big to send</span></span></li>"
     );
-  });
-  return page("Books", "<ul>" + items.join("") + "</ul>");
+  }
+  return (
+    '<li><a class="book" target="_top" href="' +
+    escapeHtml(appLink(ctx.appUrl, { t: ctx.token, f: book.id })) +
+    '">' +
+    escapeHtml(book.name) +
+    '<span class="meta">' +
+    bookMeta(book) +
+    "</span></a></li>"
+  );
+}
+
+// The first page: series (linked by their first folder ID), then loose books.
+function renderShelf(ctx) {
+  const parts = [];
+  if (ctx.unreadable) {
+    parts.push(
+      '<p class="note">' +
+        ctx.unreadable +
+        (ctx.unreadable === 1 ? " shelf folder" : " shelf folders") +
+        " couldn&#39;t be read.</p>",
+    );
+  }
+  if (ctx.series.length) {
+    const items = ctx.series.map(
+      (series) =>
+        '<li><a class="book" target="_top" href="' +
+        escapeHtml(appLink(ctx.appUrl, { t: ctx.token, s: series.ids[0] })) +
+        '">' +
+        escapeHtml(series.name) +
+        "</a></li>",
+    );
+    parts.push("<ul>" + items.join("") + "</ul>");
+  }
+  if (ctx.loose.length) {
+    parts.push(
+      "<h2>Books</h2><ul>" + ctx.loose.map((book) => bookItem(ctx, book)).join("") + "</ul>",
+    );
+  }
+  if (!ctx.series.length && !ctx.loose.length) {
+    parts.push("<p>No series or books on the shelf yet.</p>");
+  }
+  parts.push(refreshLink(ctx, {}));
+  return page("Bookshelf", parts.join(""));
+}
+
+// One series: its volumes in natural order.
+function renderSeries(ctx) {
+  const list = ctx.volumes.length
+    ? "<ul>" + ctx.volumes.map((book) => bookItem(ctx, book)).join("") + "</ul>"
+    : "<p>No books yet.</p>";
+  return page(
+    ctx.series.name,
+    list + refreshLink(ctx, { s: ctx.seriesId }) + backLink({ ...ctx, seriesId: null }),
+  );
 }
 
 // The confirm step: sending is a POST, so a browser preloading a link can never send a book.

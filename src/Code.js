@@ -46,13 +46,28 @@ function handleVerified_(request, services, settings) {
   const ctx = { appUrl: settings.webAppUrl, token: settings.token };
 
   if (params.f === undefined) {
-    const files = settings.folderIds.flatMap((id) => services.listFolder(id));
-    return renderList({ ...ctx, books: listBooks(files, settings.maxBytes) });
+    const shelf = readShelf_(services, settings);
+    if (params.s === undefined) return renderShelf({ ...ctx, ...shelf });
+    // Only a series ID the shelf listing itself produced is used (review N6).
+    const series = findSeries(shelf, params.s);
+    if (!series) {
+      return renderMessage(ctx, "Not on the shelf", "This series isn't on the shelf any more.");
+    }
+    const listings = series.ids.map((id) => readListing_(services, settings, id, false));
+    return renderSeries({
+      ...ctx,
+      series,
+      seriesId: params.s,
+      volumes: listVolumes(listings, settings.maxBytes),
+    });
   }
 
+  // The send check always reads the file and its parent folders fresh from Drive.
   const file = isDriveId(params.f) ? services.getFile(params.f) : null;
-  const check = checkSendable(file, settings.folderIds, settings.maxBytes);
+  const parents = parentFoldersOf_(services, settings, file);
+  const check = checkSendable(file, settings.folderIds, settings.maxBytes, parents);
   if (!check.ok) return renderMessage(ctx, "Can't send this", problemText_(check.reason));
+  ctx.seriesId = check.seriesId;
 
   if (request.method !== "POST") return renderConfirm({ ...ctx, book: check.book });
 
@@ -102,6 +117,31 @@ function noteFailure_(services, settings, label, error) {
   }
 }
 
+// A folder's listing, or null if it can't be read (unshared, deleted, Drive down). The failure is
+// noted for checkSetup, so one unshared account doesn't hide the rest of the shelf.
+function readListing_(services, settings, folderId, withFolders) {
+  try {
+    return services.listFolder(folderId, withFolders);
+  } catch (error) {
+    noteFailure_(services, settings, "folder unreadable", error);
+    return null;
+  }
+}
+
+function readShelf_(services, settings) {
+  const listings = settings.folderIds.map((id) => readListing_(services, settings, id, true));
+  return buildShelf(listings, settings.maxBytes);
+}
+
+// The parent folders needed to place a file that isn't directly in a shelf folder (at most 5:
+// Drive files have one parent nowadays).
+function parentFoldersOf_(services, settings, file) {
+  if (!file || (file.parentIds || []).some((id) => settings.folderIds.includes(id))) return [];
+  return parentsToCheck(file, settings.folderIds)
+    .slice(0, 5)
+    .map((id) => services.getFolder(id));
+}
+
 function problemText_(reason) {
   if (reason === "too-big") return "This book is too big to send by e-mail.";
   if (reason === "not-a-book") return "Only EPUB and PDF books can be sent.";
@@ -111,11 +151,47 @@ function problemText_(reason) {
 function appsScriptServices_() {
   return {
     properties: () => PropertiesService.getScriptProperties().getProperties(),
-    listFolder: (folderId) => {
+    // A folder's files (and subfolders if asked), without parent lookups: they cost one Drive
+    // call per file, and the listing doesn't need them.
+    listFolder: (folderId, withFolders) => {
+      const folder = DriveApp.getFolderById(folderId);
       const files = [];
-      const iterator = DriveApp.getFolderById(folderId).getFiles();
-      while (iterator.hasNext()) files.push(fileInfo_(iterator.next()));
-      return files;
+      const fileIterator = folder.getFiles();
+      while (fileIterator.hasNext()) {
+        const file = fileIterator.next();
+        files.push({
+          id: file.getId(),
+          name: file.getName(),
+          size: file.getSize(),
+          mimeType: file.getMimeType(),
+          trashed: file.isTrashed(),
+        });
+      }
+      const folders = [];
+      if (withFolders) {
+        const folderIterator = folder.getFolders();
+        while (folderIterator.hasNext()) {
+          const sub = folderIterator.next();
+          folders.push({ id: sub.getId(), name: sub.getName(), trashed: sub.isTrashed() });
+        }
+      }
+      return { folders, files };
+    },
+    getFolder: (id) => {
+      try {
+        const folder = DriveApp.getFolderById(id);
+        const parentIds = [];
+        const parents = folder.getParents();
+        while (parents.hasNext()) parentIds.push(parents.next().getId());
+        return {
+          id: folder.getId(),
+          name: folder.getName(),
+          trashed: folder.isTrashed(),
+          parentIds,
+        };
+      } catch {
+        return null; // no such folder, or not shared with this account
+      }
     },
     getFile: (id) => {
       try {
@@ -173,9 +249,24 @@ function checkSetup() {
       : "Script Properties look right.",
   );
   if (!settings.problems.includes("FOLDER_ID")) {
-    const files = settings.folderIds.flatMap((id) => services.listFolder(id));
-    const books = listBooks(files, settings.maxBytes);
-    console.log("Books found in the folder: " + books.length);
+    const ids = settings.folderIds;
+    const listings = ids.map((id) => readListing_(services, settings, id, true));
+    listings.forEach((listing, i) => {
+      if (!listing) {
+        console.log(
+          "Shelf folder " +
+            (i + 1) +
+            " of " +
+            ids.length +
+            " in FOLDER_ID couldn't be read. " +
+            "Is it shared with this account as Viewer?",
+        );
+      }
+    });
+    const shelf = buildShelf(listings, settings.maxBytes);
+    console.log(
+      "Shelf: " + shelf.series.length + " series, " + shelf.loose.length + " loose books.",
+    );
   }
   console.log("E-mails left today: " + services.remainingQuota());
   const lastError = services.state.get("_lastError");
