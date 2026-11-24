@@ -186,11 +186,42 @@ test("a mail failure is logged without the Kindle address or token, and shown pl
   assert.ok(calls.logs[0].includes("[hidden]"));
 });
 
-test("mail errors are mapped to plain words", () => {
-  assert.match(app.sendFailureText(new Error("Service invoked too many times")), /limit/);
-  assert.match(app.sendFailureText(new Error("Attachment too large")), /too big/);
-  assert.match(app.sendFailureText(new Error("Something odd")), /couldn't be sent/);
-  assert.match(app.sendFailureText(undefined), /couldn't be sent/);
+test("mail failures are explained from the file size and quota, not the error text", () => {
+  const MB = 1024 * 1024;
+  assert.match(app.sendFailureText(36 * MB, 90), /too big/);
+  assert.match(app.sendFailureText(2 * MB, 0), /limit is used up/);
+  assert.match(app.sendFailureText(2 * MB, 90), /couldn't be sent/);
+  assert.match(app.sendFailureText(25 * MB, 90), /couldn't be sent/);
+});
+
+// Bug found in E6: Gmail's refusal of a 36 MB file came back in Khmer, so matching English words
+// in the error text showed "try again" for a file that can never be sent.
+test("a Gmail refusal in any language is explained correctly", () => {
+  const khmer = "ហួសដែនកំណត់";
+  const quotaGone = run(
+    "POST",
+    { t: TOKEN, f: "vol-1-epub-id" },
+    {
+      remainingQuota: (() => {
+        let calls = 0;
+        return () => (calls++ === 0 ? 5 : 0); // quota ran out between the check and the send
+      })(),
+      sendMail: () => {
+        throw new Error(khmer);
+      },
+    },
+  );
+  assert.ok(quotaGone.page.html.includes("limit is used up"));
+  const unknown = run(
+    "POST",
+    { t: TOKEN, f: "vol-1-epub-id" },
+    {
+      sendMail: () => {
+        throw new Error(khmer);
+      },
+    },
+  );
+  assert.ok(unknown.page.html.includes("couldn&#39;t be sent"));
 });
 
 test("the diag page needs the token too", () => {

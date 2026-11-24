@@ -124,6 +124,40 @@ Follow-ups:
 3. **Send flow:** volume → confirm page → "Send" button (POST).
 4. **Spike books:** a separate `ShelfDrop test` folder with public-domain EPUBs and PDFs.
 
-## Result
+## Result (2026-11-24): the spike proved the design
 
-_To be filled in after the experiments._
+The owner ran every experiment on the real Kindle Paperwhite 5; Claude checked screenshots of the
+Kindle, the browser and the Apps Script execution log.
+
+| #    | Result                                                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| E1   | Pass. The Kindle browser shows the Apps Script page (inside Google's frame, with its banner) and it reads well.                                  |
+| E2   | Pass. Links with `target="_top"` work and keep the token.                                                                                        |
+| E3   | Pass. The POST "Send" form works from the Kindle.                                                                                                |
+| E4   | Pass. EPUB arrived in about 2 minutes (Amazon converts it) and reads fine.                                                                       |
+| E5   | Pass. A 4 MB PDF appeared almost at once, complete.                                                                                              |
+| E6   | Pass. A 20 MB PDF arrived in about a minute. Gmail refused a 36 MB file ("Limit exceeded: email total attachments size"), so 25 MB is the limit. |
+| E7   | Pass. No token or a wrong token shows only "Not found".                                                                                          |
+| E8   | Pass. Authorisation asked only for Drive read-only and send mail.                                                                                |
+| Link | Pass. `sendLinkToKindle` delivered the link document; tapping it opened the browser.                                                             |
+
+Measured:
+
+- **Kindle browser:** Chromium 80 ("Android 9; Nexus 5" user agent), JavaScript on inside the
+  frame, page area 618 x 647 CSS px.
+- **Speed:** about 8 s per page change on the Kindle. The script itself takes 0.5–2 s (doGet) and
+  7–12 s to send (doPost); the rest is Google's frame and the e-ink redraw. Phase 2 can save
+  at most a second or two.
+
+Bugs found and fixed, each with a test:
+
+1. `ScriptApp.getService().getUrl()` returned the owner-only `/dev` URL → the `/exec` URL is now the
+   required `WEB_APP_URL` Script Property.
+2. The not-found tab title named the app → it now says only "Not found".
+3. Apps Script hides log lines of web app runs by anonymous visitors → the latest failure is kept
+   as `_lastError` and shown by `checkSetup`.
+4. Google's errors come in the account's language (Khmer here), so matching English words showed
+   "try again" for a file that can never be sent → failures are explained from the file size and
+   the quota; `MAX_MB` can only lower the limit (1–25).
+
+Owner's notes for phase 2: page changes feel slow (about 8 s).

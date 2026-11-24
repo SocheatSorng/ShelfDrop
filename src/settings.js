@@ -5,7 +5,7 @@
 //   WEB_APP_URL   the web app's /exec URL that `npm run deploy` prints. Asking Apps Script for
 //                 it (ScriptApp.getService().getUrl()) can return the owner-only /dev URL, which
 //                 breaks every link on the Kindle.
-//   MAX_MB        optional size limit in MB (default 25: Gmail's limit for one message)
+//   MAX_MB        optional lower size limit in MB, 1 to 25 (default 25: Gmail refuses more)
 
 var DEFAULT_MAX_MB = 25;
 
@@ -47,7 +47,7 @@ function readSettings(props) {
   const rawMax = source.MAX_MB === undefined ? "" : String(source.MAX_MB).trim();
   if (rawMax !== "") {
     maxMb = Number(rawMax);
-    if (!Number.isFinite(maxMb) || maxMb < 1 || maxMb > 50) {
+    if (!Number.isFinite(maxMb) || maxMb < 1 || maxMb > DEFAULT_MAX_MB) {
       problems.push("MAX_MB");
       maxMb = DEFAULT_MAX_MB;
     }

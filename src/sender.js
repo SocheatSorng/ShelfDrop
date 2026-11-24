@@ -44,14 +44,14 @@ function redact(text, secrets) {
   return out;
 }
 
-// What to tell the reader when MailApp throws. Never includes the error text itself.
-function sendFailureText(error) {
-  const message = String((error && error.message) || "");
-  if (/too many times|limit exceeded|quota/i.test(message)) {
-    return "Today's e-mail limit is used up. Try again tomorrow.";
-  }
-  if (/attachment|too large|size/i.test(message)) {
-    return "This book is too big to send by e-mail.";
-  }
+// Gmail refuses a message whose attachments total more than 25 MB (measured in E6: 20 MB arrived,
+// 36 MB was refused).
+var GMAIL_MAX_BYTES = 25 * 1024 * 1024;
+
+// What to tell the reader when MailApp throws. Decided from facts, never from the error text:
+// Google words its errors in the account's language (E6 came back in Khmer).
+function sendFailureText(bookSize, quotaLeft) {
+  if (bookSize > GMAIL_MAX_BYTES) return "This book is too big to send by e-mail.";
+  if (quotaLeft < 1) return "Today's e-mail limit is used up. Try again tomorrow.";
   return "The book couldn't be sent. Try again in a few minutes.";
 }

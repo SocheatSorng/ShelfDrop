@@ -43,8 +43,8 @@ Amazon Send to Kindle (sender must be on the approved list) → Kindle library
 
 - **Attachment size:** Send to Kindle accepts e-mails up to 50 MB, but Apps Script's MailApp sends
   through Gmail, whose limit is **25 MB per message**. So the practical limit is about 25 MB, not
-  the 50 MB in the intent. Files over the limit are shown as "too big" (as the intent says). Phase 1
-  measures the real limit.
+  the 50 MB in the intent. Files over the limit are shown as "too big" (as the intent says).
+  Confirmed in phase 1: 20 MB arrived, 36 MB was refused by Gmail.
 - **Daily mail quota:** a personal Google account can send to about 100 recipients a day through
   Apps Script. One book is one recipient, which is plenty for one reader.
 - **Execution time:** 6 minutes per request. Fetching and mailing a 25 MB file should take seconds.
@@ -163,4 +163,9 @@ function compareNatural(a, b) {
 
 ## Results
 
-_Recorded per phase as they are done._
+- **Phase 1 (spike), 2026-11-24: passed.** All experiments E1–E8 passed on the real Kindle. The
+  Kindle browser (Chromium 80, JavaScript on, 618 x 647 CSS px) uses the Apps Script page, the POST
+  form works, EPUB arrives in about 2 minutes and PDF almost at once. Gmail's 25 MB attachment
+  limit is the real size limit (36 MB refused). A page change takes about 8 s on the Kindle, of
+  which the script is 0.5–2 s. Four bugs found and fixed with tests. Details:
+  [phase1-plan.md](phase1-plan.md#result-2026-11-24-the-spike-proved-the-design).

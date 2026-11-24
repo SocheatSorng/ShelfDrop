@@ -123,9 +123,8 @@ Write down for each: worked / didn't, and what you saw.
 - **E3:** tap **Send to Kindle** → the **Sent** page appears.
 - **E4:** note the time. When does the EPUB appear in the library? Does it open and look right?
 - **E5:** the same with the small PDF.
-- **E6:** the same with the 15–24 MB PDF. Then, if you have a PDF over 26 MB: it shows "too big to
-  send". In Script Properties add `MAX_MB` = `30`, reload the list, and try sending it. Note what
-  the page says and whether it arrives. Then **delete** `MAX_MB` again.
+- **E6:** the same with the 15–24 MB PDF. A PDF over 25 MB shows "too big to send". (Done on
+  2026-11-24: Gmail refused a 36 MB file, so `MAX_MB` can now only _lower_ the limit, 1 to 25.)
 
 If something fails: in the editor, **Executions** (left menu) shows each request; open the failed
 one and describe its error (the Kindle address and token are hidden in ShelfDrop's own log lines).

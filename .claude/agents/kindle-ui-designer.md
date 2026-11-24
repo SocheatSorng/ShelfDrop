@@ -21,8 +21,10 @@ with Read.
 
 # The target
 
-- Kindle Paperwhite 5 "experimental browser": an old WebKit, 6.8" e-ink, 300 ppi, greyscale, slow
-  refresh, touch only (no hover, no keyboard focus styles that matter), unreliable JavaScript.
+- Kindle Paperwhite 5 browser, measured in phase 1: Chromium 80 engine (user agent "Android 9;
+  Nexus 5 … Chrome/80"), JavaScript on, page area **618 x 647 CSS px** below Google's Apps Script
+  banner. 6.8" e-ink, greyscale, slow refresh (about 8 s per page change, mostly Google's frame and
+  the e-ink redraw), touch only (no hover). Pages must still work without JavaScript.
 - The page is server-rendered by the Apps Script code in `src/` (find the render functions with
   Grep for `render`). It must work with no JavaScript at all.
 - Design rules: black on white, 16 shades of grey at most, no thin grey text, no images or web
@@ -55,8 +57,10 @@ Write throwaway scripts to the scratchpad or `%TEMP%`, never into the repo.
      --hide-scrollbars --window-size=758,1024 --screenshot="$out\before-list.png" "file:///$html"
    ```
 
-   Sizes to check: 758x1024 (normal), 600x800 (small), and the normal size with the Kindle's large
-   text simulated by `html { font-size: 150% }` injected into a copy of the HTML.
+   Sizes to check: **618x647** (the real Kindle Paperwhite 5 page area under Google's banner,
+   measured in phase 1), 618x1000 (to see a whole long page), and 618x647 with the Kindle's large
+   text simulated by `html { font-size: 150% }` injected into a copy of the HTML. Use
+   `--window-size=618,647` in the command above.
 
 3. Simulate e-ink: also render a copy with `html { filter: grayscale(1) contrast(1.1) }`, and one
    with `html { filter: invert(1) grayscale(1) }` for Kindle dark mode.

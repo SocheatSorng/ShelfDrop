@@ -70,7 +70,13 @@ function handleVerified_(request, services, settings) {
       services.sendMail(buildBookMail(settings.kindleEmail, check.book, services.getBlob(file.id)));
     } catch (error) {
       noteFailure_(services, settings, "send failed", error);
-      return { sent: false, text: sendFailureText(error) };
+      let quotaLeft = 1;
+      try {
+        quotaLeft = services.remainingQuota();
+      } catch {
+        // unknown: fall back to the generic message
+      }
+      return { sent: false, text: sendFailureText(check.book.size, quotaLeft) };
     }
     recordSend(services.state, file.id, now, limits.count);
     return { sent: true };

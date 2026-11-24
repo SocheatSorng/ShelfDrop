@@ -67,9 +67,9 @@ test("settings: free.kindle.com and surrounding spaces are accepted", () => {
   assert.equal(s.kindleEmail, "yourname@free.kindle.com");
 });
 
-test("settings: MAX_MB can change the limit, within 1 to 50", () => {
-  assert.equal(app.readSettings({ ...good, MAX_MB: "30" }).maxBytes, 30 * 1024 * 1024);
-  for (const bad of ["0", "51", "lots", "-5"]) {
+test("settings: MAX_MB can only lower the limit, within 1 to 25 (Gmail refuses more)", () => {
+  assert.equal(app.readSettings({ ...good, MAX_MB: "20" }).maxBytes, 20 * 1024 * 1024);
+  for (const bad of ["0", "26", "40", "lots", "-5"]) {
     const s = app.readSettings({ ...good, MAX_MB: bad });
     assert.deepEqual(plain(s.problems), ["MAX_MB"], bad);
     assert.equal(s.maxBytes, 25 * 1024 * 1024);
