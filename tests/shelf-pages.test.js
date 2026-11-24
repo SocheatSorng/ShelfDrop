@@ -409,21 +409,21 @@ test("pages: confirm and sent pages of a book in a multi-book volume go back to 
 
 // Phase 5, refinement 3 (owner's choice B): a folder icon on rows that open a page, a page labelled
 // EPUB or PDF on book rows and the confirm page; the type leaves the meta line.
-test("pages: book rows carry an EPUB or PDF icon, and the meta line no longer repeats the type", () => {
+test("pages: book rows carry a book icon (EPUB) or a paper icon (PDF); the meta line has no type", () => {
   const books = app.listBooks([file("a.epub"), file("b.pdf"), file("huge.pdf", 40 * MB)], LIMIT);
   const { html } = seriesPage(books);
   assert.ok(
-    /href="[^"]*f=id-aepub">a\.epub<span class="meta">1\.0&nbsp;MB<\/span><span class="ic">EPUB<\/span><\/a>/.test(
+    /href="[^"]*f=id-aepub">a\.epub<span class="meta">1\.0&nbsp;MB<\/span><span class="ic ep" role="img" aria-label="EPUB"><\/span><\/a>/.test(
       html,
     ),
   );
   assert.ok(
-    /f=id-bpdf">b\.pdf<span class="meta">1\.0&nbsp;MB<\/span><span class="ic">PDF<\/span><\/a>/.test(
+    /f=id-bpdf">b\.pdf<span class="meta">1\.0&nbsp;MB<\/span><span class="ic pd" role="img" aria-label="PDF"><\/span><\/a>/.test(
       html,
     ),
   );
   assert.ok(
-    /<span class="book off">huge\.pdf<span class="meta">40&nbsp;MB &middot; too big to send<\/span><span class="ic">PDF<\/span><\/span>/.test(
+    /<span class="book off">huge\.pdf<span class="meta">40&nbsp;MB &middot; too big to send<\/span><span class="ic pd" role="img" aria-label="PDF"><\/span><\/span>/.test(
       html,
     ),
   );
@@ -441,7 +441,11 @@ test("pages: rows that open a page carry a folder icon; the confirm page shows t
   assert.ok(volume.includes('3 books</span><span class="ic fo" aria-hidden="true"></span></a>'));
   const book = app.listBooks([file("a.pdf")], LIMIT)[0];
   const confirm = app.renderConfirm({ ...ctx, book }).html;
-  assert.ok(confirm.includes('<div class="pick"><span class="ic">PDF</span><p class="name">a.pdf'));
+  assert.ok(
+    confirm.includes(
+      '<div class="pick"><span class="ic pd" role="img" aria-label="PDF"></span><p class="name">a.pdf',
+    ),
+  );
   assert.ok(!app.renderSent({ ...ctx, book }).html.includes('class="ic'));
 });
 

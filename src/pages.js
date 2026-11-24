@@ -25,12 +25,17 @@ var PAGE_CSS = [
   // Rows that open another list (a main folder, a series, a volume folder) are bold. On a folder
   // page a gap splits them from the book rows below, so a reader can tell "opens a page" from
   // "sends a book"; on a series page volume folders sit in natural order among the books.
-  // Icons (phase 5, owner's choice B): drawn in CSS so they cost no image, SVG or script. A book
-  // is a page with its type printed in it; a folder is a box with a tab. Both follow the text colour,
-  // so too-big rows are grey and Kindle dark mode inverts them.
+  // Icons (phase 5, owner's choice): drawn in CSS so they cost no image, SVG or script. An EPUB is a
+  // closed book (thick spine, page edge near the bottom), a PDF a sheet of paper (folded corner, text
+  // lines), a folder a box with a tab. All follow the text colour, so too-big rows are grey and
+  // Kindle dark mode inverts them.
   "li .book{padding-left:3.5rem}",
   ".ic{position:absolute;left:.25rem;top:50%;margin-top:-1.5rem;width:2.5rem;height:3rem;border:2px solid;border-radius:2px;font:bold .75rem/1 Arial,sans-serif;display:flex;align-items:flex-end;justify-content:center;padding-bottom:.35rem}",
   ".ic.fo{height:1.8rem;margin-top:-.75rem;padding:0}",
+  ".ic.ep{border-left-width:.45rem;border-radius:2px 4px 4px 2px}",
+  ".ic.ep:before{content:'';position:absolute;left:.15rem;right:.25rem;bottom:.4rem;border-top:2px solid}",
+  ".ic.pd:before{content:'';position:absolute;top:-2px;right:-2px;width:.8rem;height:.8rem;background:#fff;border-left:2px solid;border-bottom:2px solid;border-bottom-left-radius:2px}",
+  ".ic.pd:after{content:'';position:absolute;left:.4rem;right:.4rem;top:1.15rem;height:.6rem;border-top:2px solid;border-bottom:2px solid}",
   ".ic.fo:before{content:'';position:absolute;top:-.55rem;left:-2px;width:1rem;height:.4rem;border:2px solid;border-bottom:0;border-radius:2px 2px 0 0}",
   ".pick{display:flex;align-items:center}",
   ".pick .ic{position:static;flex:none;margin:0 .9rem 0 0;width:3rem;height:3.6rem;font-size:.875rem}",
@@ -129,9 +134,17 @@ function bookLabel(book) {
   return escapeHtml(book.label || book.name);
 }
 
-// The book's type as an icon: a page labelled EPUB or PDF (real text, so it is read out too).
+// The book's type as an icon: a book for EPUB, a sheet of paper for PDF. The type is in its label,
+// so it is still read out though the meta line no longer says it.
 function typeIcon(book) {
-  return '<span class="ic">' + escapeHtml(book.kind.toUpperCase()) + "</span>";
+  const type = book.kind === "pdf" ? "pd" : "ep";
+  return (
+    '<span class="ic ' +
+    type +
+    '" role="img" aria-label="' +
+    escapeHtml(book.kind.toUpperCase()) +
+    '"></span>'
+  );
 }
 
 // Size, led by the file name when the row shows a volume folder's name instead, and
