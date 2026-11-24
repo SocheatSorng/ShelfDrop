@@ -103,3 +103,25 @@ Branch `phase-2-shelf`, version 0.2.0. Spec: [spec.md](spec.md), phase 2 row.
 Defaults unless you say otherwise: no volume counts on the series list (counting means opening every
 series folder, which would slow the first load); empty series folders are shown and say "No books
 yet"; series first, then loose books.
+
+## Decisions made (2026-11-24)
+
+1. **Shelf:** books live in **several Google accounts**, shown on the Kindle as **one shelf**. Each
+   account shares its books folder with the ShelfDrop Gmail as **Viewer**. Consequences:
+   - `FOLDER_ID` takes a comma-separated list of folder IDs (one ID still works). Each ID is checked;
+     at most 10.
+   - Series with the same name in two folders are merged into one series (natural sort by name,
+     ignoring case); its page lists the volumes from all of them. `?s=` carries one folder ID that
+     must be a direct child of one of the shelf folders; the page then lists every series folder
+     with that name.
+   - Loose books from all shelf folders are listed together.
+   - A shelf folder that can't be read (unshared, deleted) is skipped, and the shelf page says
+     "1 folder couldn't be read" without its ID; `checkSetup` names which one.
+   - The send check accepts a file whose parent, or whose parent's parent, is any shelf folder.
+2. **Shelf size:** under about 40 per list, so one scrolling list each, no paging.
+3. **Speed:** cache listings for 30 minutes with a Refresh link; target under 0.5 s script time for
+   cached pages.
+4. **Send flow:** keep the confirm page.
+
+Defaults kept: no volume counts on the series list; empty series show "No books yet"; series first,
+then loose books.
