@@ -13,7 +13,7 @@ function doPost(e) {
 function serve_(e, method) {
   const result = handleRequest({ method, params: (e && e.parameter) || {} }, appsScriptServices_());
   return HtmlService.createHtmlOutput(result.html)
-    .setTitle(result.title + " - ShelfDrop")
+    .setTitle(result.windowTitle || result.title + " - ShelfDrop")
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
 }
 

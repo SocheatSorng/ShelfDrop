@@ -296,7 +296,10 @@ test("doPost sends through MailApp; doGet without parameters is not found", () =
   assert.equal(out.sent.length, 1);
   assert.equal(out.sent[0].to, KINDLE);
   ctx.doGet(undefined);
-  assert.equal(out.title, "Not found - ShelfDrop");
+  // Bug found in the owner's E7 check: the tab said "Not found - ShelfDrop", naming the app to
+  // anyone without the token.
+  assert.equal(out.title, "Not found");
+  assert.ok(!/shelfdrop/i.test(out.html));
 });
 
 test("a Drive lookup error (file not shared) is treated as not found", () => {

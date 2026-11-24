@@ -134,8 +134,9 @@ function renderError() {
 }
 
 // Shown for a missing or wrong token: no links, no names, nothing about the app.
+// The browser tab says just "Not found", without the app's name.
 function renderNotFound() {
-  return page("Not found", "<p>This page doesn't exist.</p>");
+  return { ...page("Not found", "<p>This page doesn't exist.</p>"), windowTitle: "Not found" };
 }
 
 function renderSetupNeeded(problems) {
