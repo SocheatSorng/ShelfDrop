@@ -104,3 +104,15 @@ never read. Test: a listing cached in the old format is ignored and the names sh
   comes from its listing (cached). Two or more books: back to the volume, else to the series.
 - **Tests:** model rows and counts (too-big books count, non-books don't), the volume page, the
   fresh check (unknown, another series', moved away), the back links, and both leak sweeps.
+
+### UI pass and security review (2026-11-24)
+
+- **UI pass** (`kindle-ui-designer`, fake data, 618 x 647, tall, 150% text, greyscale, dark): no
+  change needed. Multi-book volume rows are bold with "N books"; one-book volume rows look like
+  book rows; long titles wrap; pages are 2.8–4.0 KB. For the owner: is bold easy to tell from
+  regular on the real panel?
+- **Security review** (`agent-skills:security-auditor`): no must-fix. `v` reaches only a direct
+  volume folder of a freshly checked series. Added tests: wrong tokens on `m`, `s`, `v` read no
+  folders; a folder inside a volume is refused, its books never listed and not sendable; an unlisted
+  `v` is never looked up. Noted, left: the send reads the volume listing (cached) to choose the back
+  link; a volume added in the last 30 minutes needs Refresh on the series page.
