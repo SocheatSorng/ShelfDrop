@@ -1061,3 +1061,47 @@ test("sending again moves the mark to the new date", () => {
   const confirm = run("GET", { t: TOKEN, f: "vol-1-epub-id" }, { state, properties: props });
   assert.deepEqual(marks(confirm.page.html), ["sent 24 Nov"]);
 });
+
+// Phase 3 audit: every page a reader can reach shows no Kindle address, no shelf folder ID and no
+// Google error text, and the token appears only inside links and the send form.
+test("safe messages: no page shows the address, folder IDs, IDs in text or Google's error text", () => {
+  const leak = "Google says: " + KINDLE.toUpperCase() + " " + FOLDER + " " + TOKEN;
+  const boom = () => {
+    throw new Error(leak);
+  };
+  const full = memoryState({ ["_count:2026-11-24"]: "15" });
+  const recent = memoryState({ "_sent:vol-1-epub-id": String(NOW - 60 * 1000) });
+  const send = { t: TOKEN, f: "vol-1-epub-id" };
+  const cases = [
+    ["no token", "GET", {}, {}],
+    ["setup needed", "GET", { t: TOKEN }, { properties: () => ({ ACCESS_TOKEN: TOKEN }) }],
+    ["unknown series", "GET", { t: TOKEN, s: "ser-unknown-01" }, {}],
+    ["series off the shelf", "GET", { t: TOKEN, s: "not-shelf-sub1" }, {}],
+    ["file not on the shelf", "GET", { t: TOKEN, f: "private-doc-id" }, {}],
+    ["file too big", "POST", { t: TOKEN, f: "huge-pdf-id00" }, {}],
+    ["not a book", "POST", { t: TOKEN, f: "sheet-xlsx-id" }, {}],
+    ["no such file", "POST", { t: TOKEN, f: "no-such-file-01" }, {}],
+    ["cooldown", "POST", send, { state: recent }],
+    ["daily cap", "POST", send, { state: full }],
+    ["busy", "POST", send, { withLock: () => null }],
+    ["quota used up", "POST", send, { remainingQuota: () => 0 }],
+    ["mail refused", "POST", send, { sendMail: boom }],
+    ["file unreadable", "POST", send, { getBlob: boom }],
+    ["Drive down", "GET", send, { getFile: boom }],
+    ["shelf unreadable", "GET", { t: TOKEN }, { listFolder: boom }],
+  ];
+  for (const [name, method, params, overrides] of cases) {
+    const { page } = run(method, params, overrides);
+    const html = page.html;
+    assert.ok(!html.toLowerCase().includes(KINDLE), name + ": address");
+    assert.ok(!html.includes("Google says"), name + ": error text");
+    for (const id of [FOLDER, FOLDER_B]) assert.ok(!html.includes(id), name + ": shelf folder ID");
+    // Outside attributes (the text the reader sees) there's no token and no Drive ID at all.
+    const text = html.replace(/<style>[\s\S]*?<\/style>/, "").replace(/<[^>]*>/g, " ");
+    assert.ok(!text.includes(TOKEN), name + ": token in text");
+    for (const id of [...Object.keys(FILES), ...Object.keys(FOLDERS), ...Object.values(params)]) {
+      if (id !== TOKEN) assert.ok(!text.includes(id), name + ": ID " + id + " in text");
+    }
+    assert.ok(!page.windowTitle || !page.windowTitle.includes(TOKEN), name + ": title");
+  }
+});
