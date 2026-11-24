@@ -185,3 +185,8 @@ function compareNatural(a, b) {
   history was rewritten to drop a personal path. No hands-on guide test (owner's decision). Deployed
   as version @11 at the same URL; the owner checked the bookmark on the Kindle. Details:
   [phase4-plan.md](phase4-plan.md#result-2026-11-24).
+- **Phase 5 (refinements before the first push), 2026-11-24: passed, part of 1.0.0.** A page per
+  main folder by its Drive name (never merged across accounts), a page per volume folder with
+  several books, and book, paper and folder icons drawn in CSS. Two security reviews and three UI
+  passes; two bugs found and fixed with tests (stale cache without names, confirm-page icon).
+  Details: [phase5-plan.md](phase5-plan.md#result-2026-11-24).

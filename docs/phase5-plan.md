@@ -153,3 +153,11 @@ The EPUB is a narrow closed book (thick spine, cover label, page block at the bo
 sheet with a folded corner and three text lines; the folder is unchanged. UI pass: found a **bug**
 on the confirm page, where the icon was `position:static` and its fold and lines were drawn against
 the page, across the Back link; fixed (`position:relative`) with a test.
+
+## Result (2026-11-24)
+
+On the Kindle (deploys @12–@16) the owner checked each refinement: the first page lists the main
+folders by name (after the cache-format fix, @13), folder and series pages, volume folders with
+several books opening their own page, and the book, paper and folder icons, and said
+"Good, merge". `phase-5-refine` fast-forwarded into `main`; the local `v1.0.0` tag was moved to the
+new `main` (1.0.0 had not been pushed).
