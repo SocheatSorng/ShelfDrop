@@ -137,3 +137,10 @@ never read. Test: a listing cached in the old format is ignored and the names sh
   (read out by screen readers), the folder icon is `aria-hidden`.
 - Tests: icons on every kind of row and the confirm page, none on the Sent page, no type in the meta
   line, and no `<img>`, `<svg>`, `<script>` or `url(` on the pages.
+
+### UI pass (2026-11-24)
+
+`kindle-ui-designer` (fake data; 618 x 647, tall, 150% text, greyscale, dark): icons centred on 1–3
+line rows, "EPUB" fits at 150% text, too-big icons grey, dark mode inverts. Changed: the book icon
+is taller (2.5 x 3rem) so it reads as a page, not a box like the folder; the confirm page's icon is
+bigger with a 14px label. For the owner: is the 12px label clear on e-ink, and the folder tab?
