@@ -87,7 +87,7 @@ function handleVerified_(request, services, settings, props) {
     // Drive (review N12): one moved off the shelf stops showing at once.
     const main = findMainOfSeries(readMains_(services, settings, false), params.s);
     const found = main ? findSeries(buildShelf([main.listing], settings.maxBytes), params.s) : null;
-    const ids = found ? found.ids.filter((id) => stillOnShelf_(services, settings, id)) : [];
+    const ids = found ? found.ids.filter((id) => stillOnShelf_(services, id, main.id)) : [];
     if (!ids.includes(params.s)) {
       return renderMessage(ctx, "Not on the shelf", "This series isn't on the shelf any more.");
     }
@@ -237,14 +237,12 @@ function cachePut_(services, key, value, seconds) {
   }
 }
 
-// Whether a series folder, read fresh from Drive, still sits directly in a shelf folder.
-function stillOnShelf_(services, settings, folderId) {
+// Whether a series folder, read fresh from Drive, still sits directly in the main folder whose
+// (maybe 30-minute-old) listing it came from. One moved to another main folder stops showing
+// under the old one at once (phase 5 security review, note 3).
+function stillOnShelf_(services, folderId, mainId) {
   const folder = services.getFolder(folderId);
-  return Boolean(
-    folder &&
-    !folder.trashed &&
-    (folder.parentIds || []).some((id) => settings.folderIds.includes(id)),
-  );
+  return Boolean(folder && !folder.trashed && (folder.parentIds || []).includes(mainId));
 }
 
 // The main folder ID at place m ("1", "2", ... from the URL) in FOLDER_ID, or null.

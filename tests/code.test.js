@@ -927,6 +927,20 @@ test("a series page re-checks in Drive that its folders are still on the shelf",
   const rest = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache, getFolder: moved });
   assert.equal(rest.page.title, "Tales");
   assert.ok(rest.page.html.includes("Tales Vol 3.epub") && !rest.page.html.includes("Vol 12"));
+  // Moved to the other main folder within the cache's 30 minutes: gone from the old one at once.
+  const toB = (id) =>
+    id === "ser-tales-a01"
+      ? { id, trashed: false, name: "Tales", parentIds: [FOLDER_B] }
+      : moved(id);
+  const stale = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache, getFolder: toB });
+  assert.equal(stale.page.title, "Not on the shelf");
+});
+
+// Phase 5 security review, note 5: m only picks a folder page; s and f win when present.
+test("a series or file in the URL wins over m", () => {
+  assert.equal(run("GET", { t: TOKEN, m: "2", s: "ser-tales-a01" }).page.title, "Tales");
+  assert.equal(run("GET", { t: TOKEN, m: "2", f: "vol-1-epub-id" }).page.title, "Send to Kindle?");
+  assert.equal(run("GET", { t: TOKEN, m: "x", s: "ser-tales-a01" }).page.title, "Tales");
 });
 
 // Review N17: a series name from Drive becomes the tab title; keep it short.
@@ -1133,6 +1147,7 @@ test("sending again moves the mark to the new date", () => {
 // Google error text, and the token appears only inside links and the send form.
 test("safe messages: no page shows the address, folder IDs, IDs in text or Google's error text", () => {
   const leak = "Google says: " + KINDLE.toUpperCase() + " " + FOLDER + " " + TOKEN;
+  const oneFolder = () => ({ ...PROPS, FOLDER_ID: FOLDER });
   const boom = () => {
     throw new Error(leak);
   };
@@ -1159,6 +1174,8 @@ test("safe messages: no page shows the address, folder IDs, IDs in text or Googl
     ["folder unreadable", "GET", { t: TOKEN, m: "2" }, { listFolder: boom }],
     ["unknown folder", "GET", { t: TOKEN, m: "7" }, {}],
     ["folder ID as m", "GET", { t: TOKEN, m: FOLDER }, {}],
+    ["one folder, unreadable", "GET", { t: TOKEN }, { properties: oneFolder, listFolder: boom }],
+    ["one folder, Drive down", "GET", send, { properties: oneFolder, getFile: boom }],
   ];
   for (const [name, method, params, overrides] of cases) {
     const { page } = run(method, params, overrides);
@@ -1238,9 +1255,13 @@ test("safe messages: shelf, series, confirm and Sent pages, and every tab title,
     ["confirm", "GET", { t: TOKEN, f: "vol-1-epub-id" }],
     ["sent", "POST", { t: TOKEN, f: "vol-2-epub-id" }],
     ["not found", "GET", { t: "wrong" }],
+    ["one folder: first page", "GET", { t: TOKEN }, { FOLDER_ID: FOLDER }],
+    ["one folder: series", "GET", { t: TOKEN, s: "ser-tales-a01" }, { FOLDER_ID: FOLDER }],
+    ["one folder: loose book", "GET", { t: TOKEN, f: "vol-1-epub-id" }, { FOLDER_ID: FOLDER }],
   ];
-  for (const [name, method, params] of cases) {
-    const { page } = run(method, params, { state, properties: props });
+  for (const [name, method, params, extra] of cases) {
+    const properties = extra ? () => ({ ...props(), ...extra }) : props;
+    const { page } = run(method, params, { state, properties });
     assert.ok(!page.html.toLowerCase().includes(KINDLE), name + ": address");
     for (const id of [FOLDER, FOLDER_B]) assert.ok(!page.html.includes(id), name + ": shelf ID");
     const text = page.html.replace(/<style>[\s\S]*?<\/style>/, "").replace(/<[^>]*>/g, " ");
