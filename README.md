@@ -1,41 +1,54 @@
 # ShelfDrop
 
-Your Google Drive is your bookshelf. On your Kindle's web browser, open one private bookmarked page,
-tap a series, tap a volume, and the book arrives in your Kindle library a minute or two later through
-Amazon's **Send to Kindle**.
+Your Google Drive is your bookshelf. In your Kindle's web browser, open one private bookmarked page,
+tap a series, tap a volume, and the book arrives in your Kindle library a minute or two later
+through Amazon's **Send to Kindle**.
 
-- Runs as a **Google Apps Script web app** in your own Google account: no server, no cost.
+- Runs as a **Google Apps Script web app** in a Google account of your own: no server, no cost.
 - No jailbreak and no changes to the Kindle. You never sign in to Google on the Kindle.
 - The page is protected by a long secret token in its link. You can change the token at any time.
-- ShelfDrop only **reads** your Drive folder. It never moves, renames or deletes your files.
-- EPUB and PDF only. Amazon receives a copy of every book you send (that is how Send to Kindle works).
+- ShelfDrop only **reads** your Drive folders. It never moves, renames or deletes your files.
+- Series, volumes in natural order (Vol 2 before Vol 10), loose books, books from several Google
+  accounts on one shelf, and "✓ sent <date>" on every book you have sent.
+- EPUB and PDF only, up to 25 MB (Gmail's limit), at most 15 books a day. Amazon receives a copy of
+  every book you send (that is how Send to Kindle works).
 
-> Status: **pre-alpha**. The foundation is in place. Phase 1 (a spike that proves the Kindle browser
-> and Send to Kindle work with this design) is planned in [docs/phase1-plan.md](docs/phase1-plan.md).
-> See [docs/spec.md](docs/spec.md) for all phases.
+Status: **1.0.0**, in daily use on a Kindle Paperwhite 5. See [CHANGELOG.md](CHANGELOG.md).
+
+## Set it up
+
+Follow **[docs/setup.md](docs/setup.md)**: from nothing to a bookmark on your Kindle in about an
+hour. It also covers updating, changing the token, going back to an earlier version and
+troubleshooting.
 
 ## How it works
 
 ```
-Kindle browser ──(private link with token)──► Apps Script web app (your Google account)
-                                                 │ reads   Drive folder "Books/<series>/<volume>.epub"
+Kindle browser ──(private link with token)──► Apps Script web app (your ShelfDrop Google account)
+                                                 │ reads   shared Drive folders "Books/<series>/<volume>.epub"
                                                  │ emails  the file to yourname@kindle.com
                                                  ▼
                                      Amazon Send to Kindle ──► Kindle library
 ```
 
+The page is plain server-rendered HTML for the Kindle's e-ink browser: large tap targets, black on
+white, no JavaScript needed. The app asks Google for two permissions only: read-only Drive and send
+mail. Settings (the folder IDs, the Kindle address, the token) live in the Apps Script project's
+Script Properties, never in the code. Design, phases and results: [docs/spec.md](docs/spec.md).
+
 ## Repository layout
 
-| Path              | What it is                                                         |
-| ----------------- | ------------------------------------------------------------------ |
-| `src/`            | The Apps Script code (pushed to Google with `clasp`, from phase 1) |
-| `tests/`          | Node tests (`node:test`) for the logic in `src/`, with fake data   |
-| `docs/intent/`    | The confirmed statement of intent                                  |
-| `docs/spec.md`    | Spec, phases and results                                           |
-| `.claude/agents/` | Claude helpers (the Kindle page UI designer)                       |
-| `.github/`        | CI, security scans, CodeQL, Dependabot                             |
+| Path              | What it is                                                       |
+| ----------------- | ---------------------------------------------------------------- |
+| `src/`            | The Apps Script code (uploaded to Google with `clasp`)           |
+| `tests/`          | Node tests (`node:test`) for the logic in `src/`, with fake data |
+| `tools/`          | `npm run deploy` and `npm run token`                             |
+| `docs/setup.md`   | The setup guide                                                  |
+| `docs/`           | Intent, spec, phase plans and the old phase guides               |
+| `.claude/agents/` | Claude helpers (the Kindle page UI designer)                     |
+| `.github/`        | CI, security scans, CodeQL, Dependabot                           |
 
-## Install the dev tools
+## Develop
 
 Needs Node 22 or newer.
 
@@ -43,45 +56,28 @@ Needs Node 22 or newer.
 npm ci
 ```
 
+```powershell
+npm run check
+```
+
+`npm run check` runs `npm run lint` (ESLint with security rules, Prettier), `npm test` and
+`npm run audit`. `npm run format` fixes formatting. There is no build step: the files in `src/` are
+the app, and `npm run deploy` uploads and deploys them (see the guide).
+
 Optional but recommended, the pre-commit hooks (gitleaks, private-key check, lint, tests, audit):
 
 ```powershell
 uv tool install pre-commit
+```
+
+```powershell
 pre-commit install
 ```
 
-## Lint, test, audit
+Tests never use real books, Drive folders, Kindle addresses or tokens. A test
+(`tests/repo-hygiene.test.js`) fails if a real Kindle address or token ever appears in the repo, and
+another (`tests/docs.test.js`) keeps this README and the guide in step with the code.
 
-```powershell
-npm run lint
-npm test
-npm run audit
-```
+## License
 
-`npm run check` runs all three. `npm run format` fixes formatting.
-
-## Build and deploy
-
-There is no build step: the files in `src/` are the app. Deploy to your Google account with
-[clasp](https://github.com/google/clasp) (run pinned through `npx`):
-
-```powershell
-npm run clasp -- login
-npm run clasp:init -- <ScriptId>
-npm run deploy
-```
-
-The full first-time setup is in [docs/setup-phase1.md](docs/setup-phase1.md).
-
-## Settings (never in the repo)
-
-These live in the Apps Script project's **Script Properties**, set by you in the Apps Script editor:
-
-| Property       | Meaning                                             |
-| -------------- | --------------------------------------------------- |
-| `FOLDER_ID`    | The Drive folder that is your bookshelf             |
-| `KINDLE_EMAIL` | Your Send to Kindle address (`yourname@kindle.com`) |
-| `ACCESS_TOKEN` | The long random secret in your bookmarked link      |
-| `WEB_APP_URL`  | The `/exec` URL that `npm run deploy` prints        |
-
-A test (`tests/repo-hygiene.test.js`) fails if a real Kindle address ever appears in the repo.
+[MIT](LICENSE).
