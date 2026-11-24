@@ -69,3 +69,30 @@ mail failure, something went wrong. Logs keep redacting the address and token (p
 | T2  | Send the same book again within 10 minutes | "Not sent", and the mark stays                            |
 | T3  | Rotate the token (guide recipe)            | Old bookmark shows "Not found"; the new link works        |
 | T4  | checkSetup                                 | Logs counts and names only; no address, token or file IDs |
+
+## UI pass (2026-11-24)
+
+`kindle-ui-designer` at 618 x 647 (also 150% text, dark, greyscale) with fake books. The mark is
+**bold** and kept on one line (`white-space:nowrap`), upright on italic "too big" rows; the size
+("3.4 MB") no longer splits across lines. Inline, not on its own line, to keep rows short. Georgia
+has no ✓; the browser takes it from another font. The owner checks it on the Kindle (T1); if it is
+a box, swap the glyph or drop it.
+
+## Security review (2026-11-24)
+
+`security-auditor`, read-only, over `main..phase-3-hardening`. No must-fix items; the marks are
+built only after the token check and kept in a `Map`. Fixed, each with tests:
+
+- **SF-1:** a huge `_sent:` value (`1e300`) made `toISOString` throw and broke the page; times
+  after the year 9000 are skipped.
+- **SF-2:** with Script Properties full, the new `_sent:` key failed after the mail went, so the
+  daily count was never written and the cap failed open. The count is written first; a failed mark
+  is noted in `_lastError` and the reader still sees "Sent". `checkSetup` logs how full Script
+  Properties are and warns above 400 KB.
+- **SF-3:** the leak sweep now also covers the shelf, series, confirm and Sent pages with marks, and
+  every tab title; the setup-needed case holds a Kindle address.
+
+Accepted, in the guide: **N-1** deploying before 07:00 Cambodia time resets the day's count once
+(deploy after 07:00); **N-2** a leaked link also shows which books were sent (another reason to
+change the token). Notes: **N-3** every page reads all properties (fine at this size); **N-4** a
+future `_sent:` time skips the cooldown (pre-existing; the cap still holds).

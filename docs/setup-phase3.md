@@ -14,6 +14,9 @@ What's new in phase 3:
 
 ## A. Deploy the phase 3 code
 
+**Deploy after 07:00 Cambodia time.** Before 07:00 the switch to Cambodia time would start the
+daily count again from zero once (security review N-1).
+
 In PowerShell, in your main ShelfDrop folder (where `npm run deploy` worked before). Phase 3 is not
 merged yet, so switch that folder to the phase 3 code for now, without a branch (the branch is open
 in Claude's working copy, which is why `--detach` is needed):
@@ -44,7 +47,8 @@ Write down for each: worked / didn't, and what you saw.
   show only "Not found".
 - **T1, sent mark:** open a series and send a volume you haven't sent before. Tap **Back to the
   series**: that volume's row now ends with **✓ sent** and today's date. Tap it: the **Send to
-  Kindle?** page shows the same mark. Is the mark easy to spot when you scan the list?
+  Kindle?** page shows the same mark. Is the mark easy to spot when you scan the list? Does the tick show as a tick (✓), not as an
+  empty box?
 - **T2, cooldown:** on that page, tap **Send to Kindle** again (within 10 minutes): **Not sent**,
   "sent a few minutes ago", and no second copy arrives.
 - **T3, new token:** follow part D below. Then the old bookmark shows **Not found**, and the new link
@@ -59,7 +63,9 @@ address and token are hidden in them).
 ## D. Change the token (also the recipe if the link ever leaks)
 
 The token is the secret part of your bookmarked link (`?t=…`). Changing it makes the old link stop
-working at once.
+working at once. Anyone with the link can send books to your Kindle and, since phase 3, also see
+which books you sent and when. Change it when the link was shared or forwarded, the Kindle is lost,
+sold or lent, or you change who is on Amazon's approved sender list.
 
 1. In PowerShell, in your ShelfDrop folder, copy a new token to the clipboard without showing it:
 
@@ -77,8 +83,8 @@ working at once.
      from **Trash**.
 4. Editor → pick **sendLinkToKindle** → **Run**. In a minute or two a new **ShelfDrop link**
    document arrives on the Kindle.
-5. On the Kindle: open the new document, tap **Open my bookshelf**, bookmark the page, and delete the
-   old bookmark.
+5. On the Kindle: open the new document, tap **Open my bookshelf**, bookmark the page, delete the
+   old bookmark, and clear the browser history (browser menu → **Settings** → **Clear History**).
 
 Your sent marks, books and settings are not touched; only the link changes.
 
