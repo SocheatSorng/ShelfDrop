@@ -1,0 +1,49 @@
+# Install once:  uv tool install pre-commit   (or: pip install pre-commit)
+# Then:          pre-commit install           (runs on every commit)
+# Refresh pins:  pre-commit autoupdate
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: check-json
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v1.33.1
+    hooks:
+      - id: zizmor
+
+  - repo: local
+    hooks:
+      # ESLint with eslint-plugin-security (the code security scanner) + Prettier.
+      # CodeQL in CI scans the JavaScript too.
+      - id: shelfdrop-lint
+        name: ShelfDrop lint (ESLint + security rules, Prettier)
+        entry: npm.cmd run --silent lint
+        language: system
+        pass_filenames: false
+        files: \.(js|json|md|ya?ml|html)$
+
+      - id: shelfdrop-test
+        name: ShelfDrop tests (includes the no-Kindle-address check)
+        entry: npm.cmd test --silent
+        language: system
+        pass_filenames: false
+
+      - id: npm-audit
+        name: npm audit (dependency vulnerabilities)
+        entry: npm.cmd audit --audit-level=moderate
+        language: system
+        pass_filenames: false
+        files: ^package(-lock)?\.json$

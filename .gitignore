@@ -1,0 +1,30 @@
+# Secrets and personal settings: never commit
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials*.json
+token*.json
+client_secret*.json
+# clasp: .clasp.json holds the script ID of the owner's own project; .clasprc.json holds OAuth tokens
+.clasp.json
+.clasprc.json
+
+# Dependencies, build output, caches
+node_modules/
+dist/
+coverage/
+tests/out/
+.cache/
+.eslintcache
+
+# Editors and OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
