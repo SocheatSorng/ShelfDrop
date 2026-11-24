@@ -89,15 +89,22 @@ function refreshLink(ctx, params) {
   );
 }
 
+// The row's text: the volume folder's name for a book in a volume folder, else the file name.
+function bookLabel(book) {
+  return escapeHtml(book.label || book.name);
+}
+
+// Type and size, led by the file name when the row shows a volume folder's name instead.
 function bookMeta(book) {
-  return book.kind.toUpperCase() + " &middot; " + escapeHtml(formatSize(book.size));
+  const file = book.label && book.label !== book.name ? escapeHtml(book.name) + " &middot; " : "";
+  return file + book.kind.toUpperCase() + " &middot; " + escapeHtml(formatSize(book.size));
 }
 
 function bookItem(ctx, book) {
   if (book.tooBig) {
     return (
       '<li><span class="book off">' +
-      escapeHtml(book.name) +
+      bookLabel(book) +
       '<span class="meta">' +
       bookMeta(book) +
       " &middot; too big to send</span></span></li>"
@@ -107,7 +114,7 @@ function bookItem(ctx, book) {
     '<li><a class="book" target="_top" href="' +
     escapeHtml(appLink(ctx.appUrl, { t: ctx.token, f: book.id })) +
     '">' +
-    escapeHtml(book.name) +
+    bookLabel(book) +
     '<span class="meta">' +
     bookMeta(book) +
     "</span></a></li>"
@@ -174,7 +181,7 @@ function renderConfirm(ctx) {
   return page(
     "Send to Kindle?",
     '<p class="name">' +
-      escapeHtml(ctx.book.name) +
+      bookLabel(ctx.book) +
       '<span class="meta">' +
       bookMeta(ctx.book) +
       "</span></p>" +

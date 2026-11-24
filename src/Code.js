@@ -63,13 +63,19 @@ function handleVerified_(request, services, settings) {
       return renderMessage(ctx, "Not on the shelf", "This series isn't on the shelf any more.");
     }
     const series = { ...found, ids };
-    const listings = ids.map((id) => readListing_(services, settings, id, false, refresh));
+    const listings = ids.map((id) => readListing_(services, settings, id, true, refresh));
+    // One level of volume folders inside the series (scope change 2026-11-24).
+    const volumeIds = volumeFolderIds(listings).slice(0, MAX_LISTED_FOLDERS);
+    const volumeListings = new Map(
+      volumeIds.map((id) => [id, readListing_(services, settings, id, false, refresh)]),
+    );
+    const all = listings.concat([...volumeListings.values()]);
     return renderSeries({
       ...ctx,
       series,
       seriesId: params.s,
-      volumes: listVolumes(listings, settings.maxBytes),
-      truncated: listings.filter((listing) => listing && listing.truncated).length,
+      volumes: listVolumes(listings, settings.maxBytes, volumeListings),
+      truncated: all.filter((listing) => listing && listing.truncated).length,
     });
   }
 
@@ -205,11 +211,21 @@ function readShelf_(services, settings, refresh) {
 
 // The parent folders needed to place a file that isn't directly in a shelf folder (at most 5:
 // Drive files have one parent nowadays).
+// For a book in a volume folder, also the parents of those folders (the series folder). At most
+// 5 + 5 lookups: Drive files and folders have one parent nowadays.
 function parentFoldersOf_(services, settings, file) {
   if (!file || (file.parentIds || []).some((id) => settings.folderIds.includes(id))) return [];
-  return parentsToCheck(file, settings.folderIds)
+  const shelfIds = settings.folderIds;
+  const parents = parentsToCheck(file, shelfIds)
     .slice(0, 5)
     .map((id) => services.getFolder(id));
+  const isSeries = (folder) =>
+    folder && !folder.trashed && (folder.parentIds || []).some((id) => shelfIds.includes(id));
+  if (parents.some(isSeries)) return parents;
+  const grandparentIds = [
+    ...new Set(parents.flatMap((folder) => parentsToCheck(folder, shelfIds))),
+  ].slice(0, 5);
+  return parents.concat(grandparentIds.map((id) => services.getFolder(id)));
 }
 
 function problemText_(reason) {

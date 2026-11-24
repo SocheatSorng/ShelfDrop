@@ -180,3 +180,74 @@ test("shelf: listings cut short at the size limit are counted", () => {
   assert.equal(shelf.truncated, 1);
   assert.equal(app.buildShelf([{ folders: [], files: [] }], LIMIT).truncated, 0);
 });
+
+// Scope change 2026-11-24: one level of volume folders inside a series.
+test("volumes: books in volume folders are labelled with the folder name, sorted with the rest", () => {
+  const seriesListing = {
+    folders: [folder("v10", "Volume 10", "ser-1"), folder("v2", "Volume 2", "ser-1")],
+    files: [book("Tales Artbook.pdf", "ser-1")],
+  };
+  const volumeListings = new Map(
+    Object.entries({
+      v2: { folders: [folder("deeper", "Extras", "v2")], files: [book("SmallPDF.pdf", "v2")] },
+      v10: { folders: [], files: [book("scan10.epub", "v10"), book("notes.txt", "v10")] },
+    }),
+  );
+  const volumes = plain(app.listVolumes([seriesListing], LIMIT, volumeListings));
+  assert.deepEqual(
+    volumes.map((b) => [b.label, b.name]),
+    [
+      ["Tales Artbook.pdf", "Tales Artbook.pdf"],
+      ["Volume 2", "SmallPDF.pdf"],
+      ["Volume 10", "scan10.epub"],
+    ],
+  );
+});
+
+test("volumes: an unreadable or missing volume folder listing is skipped", () => {
+  const seriesListing = { folders: [folder("v1", "Volume 1", "ser-1")], files: [] };
+  assert.deepEqual(plain(app.listVolumes([seriesListing], LIMIT, new Map([["v1", null]]))), []);
+  assert.deepEqual(plain(app.listVolumes([seriesListing], LIMIT)), []);
+});
+
+test("volumes: the folders whose listings are needed are the series' volume folders", () => {
+  const listings = [
+    {
+      folders: [folder("v1", "Volume 1", "a"), folder("v0", "Old", "a", { trashed: true })],
+      files: [],
+    },
+    null,
+    { folders: [folder("v2", "Volume 2", "b")], files: [] },
+  ];
+  assert.deepEqual(plain(app.volumeFolderIds(listings)), ["v1", "v2"]);
+});
+
+test("send check: a book in a volume folder of a series is sendable, back to its series", () => {
+  const series = folder("ser-1", "One", SHELF_A);
+  const volume = folder("vol-2", "Volume 2", "ser-1");
+  const check = app.checkSendable(book("x.pdf", "vol-2"), [SHELF_A], LIMIT, [volume, series]);
+  assert.equal(check.ok, true);
+  assert.equal(check.seriesId, "ser-1");
+  assert.equal(check.book.label, "Volume 2");
+});
+
+// Review N6, deeper: only exactly Shelf -> Series -> Volume -> book.
+test("send check: deeper files, trashed links and folders that aren't real parents are refused", () => {
+  const series = folder("ser-1", "One", SHELF_A);
+  const volume = folder("vol-2", "Volume 2", "ser-1");
+  const extras = folder("extras", "Extras", "vol-2");
+  const cases = [
+    [book("x.pdf", "extras"), [extras, volume, series]], // three levels down
+    [book("x.pdf", "vol-2"), [folder("vol-2", "Volume 2", "ser-1", { trashed: true }), series]],
+    [book("x.pdf", "vol-2"), [volume, folder("ser-1", "One", SHELF_A, { trashed: true })]],
+    [book("x.pdf", "vol-2"), [volume]], // the series folder couldn't be read
+    [book("x.pdf", "vol-2"), [folder("vol-2", "Volume 2", "elsewhere"), series]],
+    [book("x.pdf", "vol-9"), [volume, series]], // folders given that aren't its parents
+  ];
+  for (const [file, folders] of cases) {
+    assert.deepEqual(plain(app.checkSendable(file, [SHELF_A], LIMIT, folders)), {
+      ok: false,
+      reason: "not-found",
+    });
+  }
+});

@@ -29,11 +29,13 @@ const FILES = {
   "tales-3-id-001": { name: "Tales Vol 3.epub", size: MB, parentIds: ["ser-tales-a01"] },
   "tales-12-id-01": { name: "Tales Vol 12.pdf", size: MB, parentIds: ["ser-tales-b01"] },
   "tales-x-id-001": { name: "Tales Artbook.pdf", size: MB, parentIds: ["ser-extras-01"] },
+  "tales-5-id-001": { name: "scan_005.epub", size: MB, parentIds: ["vol-tales-05"] },
   "other-1-id-001": { name: "Other 1.epub", size: MB, parentIds: ["ser-other-b01"] },
   "private-2-id01": { name: "Private 2.epub", size: MB, parentIds: ["not-shelf-sub1"] },
 };
 
-// Series folders: "Tales" exists in both accounts; "Extras" sits inside a series (two levels down);
+// Series folders: "Tales" exists in both accounts and has a volume folder "Volume 5"; "Extras" sits
+// inside that volume folder (three levels down, ignored);
 // "not-shelf-sub1" is a subfolder of a folder that isn't on the shelf.
 const FOLDERS = {
   [FOLDER]: { name: "Books", parentIds: ["my-drive-root1"] },
@@ -41,7 +43,8 @@ const FOLDERS = {
   "ser-tales-a01": { name: "Tales", parentIds: [FOLDER] },
   "ser-tales-b01": { name: "tales", parentIds: [FOLDER_B] },
   "ser-other-b01": { name: "Other Series", parentIds: [FOLDER_B] },
-  "ser-extras-01": { name: "Extras", parentIds: ["ser-tales-a01"] },
+  "vol-tales-05": { name: "Volume 5", parentIds: ["ser-tales-a01"] }, // a volume folder
+  "ser-extras-01": { name: "Extras", parentIds: ["vol-tales-05"] }, // three levels down
   "not-shelf-sub1": { name: "Private stuff", parentIds: ["other-folder-01"] },
 };
 
@@ -643,13 +646,22 @@ test("a series page lists the volumes of every same-named series folder, nothing
   const { page } = run("GET", { t: TOKEN, s: "ser-tales-b01" });
   assert.equal(page.title, "Tales");
   const names = [...page.html.matchAll(/class="book[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
-  assert.deepEqual(names, ["Tales Vol 3.epub", "Tales Vol 12.pdf"]);
+  assert.deepEqual(names, ["Tales Vol 3.epub", "Tales Vol 12.pdf", "Volume 5"]);
+  assert.ok(page.html.includes("scan_005.epub") && !page.html.includes("Artbook"));
   assert.ok(page.html.includes("s=ser-tales-b01&amp;r=1"));
 });
 
 // Security review N6: a series ID from the URL is never trusted.
 test("a series ID the shelf didn't list shows 'not on the shelf' and lists nothing", () => {
-  for (const s of [FOLDER, "ser-extras-01", "not-shelf-sub1", "no-such-folder", "", "../x"]) {
+  for (const s of [
+    FOLDER,
+    "vol-tales-05",
+    "ser-extras-01",
+    "not-shelf-sub1",
+    "no-such-folder",
+    "",
+    "../x",
+  ]) {
     const { page, calls } = run("GET", { t: TOKEN, s });
     assert.equal(page.title, "Not on the shelf", s);
     assert.ok(!page.html.includes("Artbook") && !page.html.includes("Private"), s);
@@ -717,7 +729,8 @@ test("the shelf and series listings come from the cache the second time", () => 
   assert.equal(again.calls.listFolder, 0);
   assert.equal(again.page.title, "Bookshelf");
   assert.ok(again.page.html.includes(">Tales<"));
-  assert.equal(run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache }).calls.listFolder, 2);
+  // the two "Tales" folders and the "Volume 5" folder inside one of them
+  assert.equal(run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache }).calls.listFolder, 3);
   const series = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache });
   assert.equal(series.calls.listFolder, 0);
   assert.ok(series.page.html.includes("Tales Vol 12.pdf"));
@@ -730,7 +743,7 @@ test("Refresh reads Drive again and updates the cache", () => {
   const fresh = run("GET", { t: TOKEN, r: "1" }, { cache });
   assert.equal(fresh.calls.listFolder, 2);
   const series = run("GET", { t: TOKEN, s: "ser-tales-a01", r: "1" }, { cache });
-  assert.equal(series.calls.listFolder, 2); // the two "Tales" folders; the shelf is cached
+  assert.equal(series.calls.listFolder, 3); // the "Tales" folders and "Volume 5"; the shelf is cached
 });
 
 test("the cache keeps only what the pages need: no token, no address, no non-books", () => {
@@ -873,4 +886,16 @@ test("a folder listing stops at 300 files and 100 folders and says so", () => {
   const cache = memoryCache();
   run("GET", { t: TOKEN }, { cache, listFolder: () => listing });
   for (const { value } of cache.map.values()) assert.ok(value.length < 100 * 1024);
+});
+
+// Scope change 2026-11-24: one level of volume folders inside a series.
+test("a book in a volume folder can be sent; its pages show the folder name and go back to the series", () => {
+  const confirm = run("GET", { t: TOKEN, f: "tales-5-id-001" });
+  assert.equal(confirm.page.title, "Send to Kindle?");
+  assert.ok(confirm.page.html.includes("Volume 5") && confirm.page.html.includes("scan_005.epub"));
+  assert.ok(confirm.page.html.includes('s=ser-tales-a01">&larr; Back to the series'));
+  const sent = run("POST", { t: TOKEN, f: "tales-5-id-001" });
+  assert.equal(sent.page.title, "Sent");
+  assert.equal(sent.calls.sent[0].subject, "scan_005.epub");
+  assert.ok(sent.calls.getFolder <= 6);
 });

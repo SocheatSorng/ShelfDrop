@@ -23,54 +23,72 @@ function isBookFile(file) {
   );
 }
 
-function toBook(file, maxBytes) {
+// label is what the row shows: the file name, or the volume folder's name for a book in a volume
+// folder (owner's choice, 2026-11-24).
+function toBook(file, maxBytes, label) {
   return {
     id: file.id,
     name: file.name,
+    label: label || file.name,
     kind: bookKind(file.name),
     size: file.size,
     tooBig: !(file.size <= maxBytes),
   };
 }
 
-// The books in a folder listing: EPUB/PDF only, not trashed, in natural order.
-function listBooks(files, maxBytes) {
+// The books in a folder listing: EPUB/PDF only, not trashed, in natural order of their labels.
+// label, if given, labels every book (the volume folder's name).
+function listBooks(files, maxBytes, label) {
   return (files || [])
     .filter((file) => !file.trashed && isBookFile(file))
-    .map((file) => toBook(file, maxBytes))
-    .sort((a, b) => compareNatural(a.name, b.name));
+    .map((file) => toBook(file, maxBytes, label))
+    .sort(compareBooks);
 }
 
-// Where a file sits on the shelf: { seriesId: null } for a loose book in a shelf folder,
-// { seriesId } for a volume in a series folder (a folder whose parent is a shelf folder), or null.
-// parentFolders are the file's parent folders as read fresh from Drive, never from the URL.
-function locateFile(file, shelfIds, parentFolders) {
+function compareBooks(a, b) {
+  return compareNatural(a.label, b.label) || compareNatural(a.name, b.name);
+}
+
+function folderLabel(folder) {
+  return String(folder.name || "").trim() || "(no name)";
+}
+
+// Where a file sits on the shelf, with every link checked against folders read fresh from Drive
+// (never from the URL):
+//   { seriesId: null }               a loose book directly in a shelf folder
+//   { seriesId }                     a book directly in a series folder (parent is a shelf folder)
+//   { seriesId, label }              a book in a volume folder (parent is a series folder)
+//   null                             anywhere else, deeper, trashed, or a folder couldn't be read
+function locateFile(file, shelfIds, folders) {
   if (!file || file.trashed) return null;
   const parents = file.parentIds || [];
   if (parents.some((id) => shelfIds.includes(id))) return { seriesId: null };
-  const series = (parentFolders || []).find(
-    (folder) =>
-      folder &&
-      !folder.trashed &&
-      parents.includes(folder.id) &&
-      (folder.parentIds || []).some((id) => shelfIds.includes(id)),
-  );
-  return series ? { seriesId: series.id } : null;
+  const known = (folders || []).filter((folder) => folder && !folder.trashed);
+  const byId = (id) => known.find((folder) => folder.id === id);
+  const isSeries = (folder) => (folder.parentIds || []).some((id) => shelfIds.includes(id));
+  const parentFolders = parents.map(byId).filter(Boolean);
+  const series = parentFolders.find(isSeries);
+  if (series) return { seriesId: series.id };
+  for (const volume of parentFolders) {
+    const owner = (volume.parentIds || []).map(byId).find((folder) => folder && isSeries(folder));
+    if (owner) return { seriesId: owner.id, label: folderLabel(volume) };
+  }
+  return null;
 }
 
-// The parent folders Code.js must read to place a file: those that aren't shelf folders.
-function parentsToCheck(file, shelfIds) {
-  return file ? (file.parentIds || []).filter((id) => !shelfIds.includes(id)) : [];
+// The parent folders Code.js must read to place a file or folder: those that aren't shelf folders.
+function parentsToCheck(item, shelfIds) {
+  return item ? (item.parentIds || []).filter((id) => !shelfIds.includes(id)) : [];
 }
 
 // Whether a requested file may be sent. A file outside the bookshelf answers "not-found", the same
 // as a file that doesn't exist, so the page never confirms what else is in the owner's Drive.
-function checkSendable(file, shelfIds, maxBytes, parentFolders) {
-  const where = locateFile(file, shelfIds, parentFolders);
+function checkSendable(file, shelfIds, maxBytes, folders) {
+  const where = locateFile(file, shelfIds, folders);
   if (!where) return { ok: false, reason: "not-found" };
   if (!isBookFile(file)) return { ok: false, reason: "not-a-book" };
   if (!(file.size <= maxBytes)) return { ok: false, reason: "too-big" };
-  return { ok: true, book: toBook(file, maxBytes), seriesId: where.seriesId };
+  return { ok: true, book: toBook(file, maxBytes, where.label), seriesId: where.seriesId };
 }
 
 // Series names match ignoring case and extra spaces, so "Isekai Tales" in one account and
@@ -99,7 +117,7 @@ function buildShelf(listings, maxBytes) {
       if (folder.trashed) continue;
       const key = seriesKey(folder.name);
       if (!byKey.has(key)) {
-        byKey.set(key, { name: String(folder.name || "").trim() || "(no name)", ids: [] });
+        byKey.set(key, { name: folderLabel(folder), ids: [] });
       }
       byKey.get(key).ids.push(folder.id);
     }
@@ -116,11 +134,27 @@ function findSeries(shelf, folderId) {
   return shelf.series.find((series) => series.ids.includes(folderId)) || null;
 }
 
-// A series' volumes from the listings of all its folders (folders inside a series are ignored).
-function listVolumes(listings, maxBytes) {
-  return listBooks(
-    (listings || []).flatMap((listing) => (listing && listing.files) || []),
-    maxBytes,
+// A series' volumes: the books directly in its folders, plus the books directly in each volume
+// folder (a folder inside a series folder), labelled with that folder's name. volumeListings is a
+// Map from a volume folder ID to its listing (null if it couldn't be read). Deeper is ignored.
+function listVolumes(listings, maxBytes, volumeListings) {
+  const books = [];
+  for (const listing of listings || []) {
+    if (!listing) continue;
+    books.push(...listBooks(listing.files, maxBytes));
+    for (const folder of listing.folders || []) {
+      if (folder.trashed || !volumeListings) continue;
+      const volume = volumeListings.get(folder.id);
+      if (volume) books.push(...listBooks(volume.files, maxBytes, folderLabel(folder)));
+    }
+  }
+  return books.sort(compareBooks);
+}
+
+// The volume folders whose listings a series page needs.
+function volumeFolderIds(listings) {
+  return (listings || []).flatMap((listing) =>
+    ((listing && listing.folders) || []).filter((folder) => !folder.trashed).map((f) => f.id),
   );
 }
 

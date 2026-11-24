@@ -266,3 +266,15 @@ test("pages: shelf and series pages say when some books aren't shown", () => {
   assert.ok(!shelfPage().html.includes("aren&#39;t shown"));
   assert.ok(!seriesPage([]).html.includes("aren&#39;t shown"));
 });
+
+// Scope change 2026-11-24: a book in a volume folder shows the folder name, file name underneath.
+test("pages: a volume-folder book shows its folder name, with the file name in the meta line", () => {
+  const [book] = app.listBooks([file("scan<5>.epub")], LIMIT, 'Volume "5" & <i>');
+  for (const { html } of [seriesPage([book]), app.renderConfirm({ ...ctx, book })]) {
+    assert.ok(html.includes("Volume &quot;5&quot; &amp; &lt;i&gt;"));
+    assert.ok(html.includes("scan&lt;5&gt;.epub &middot; EPUB"));
+    assert.ok(!html.includes("<i>"));
+  }
+  const [plainBook] = app.listBooks([file("Tales 1.epub")], LIMIT);
+  assert.ok(!seriesPage([plainBook]).html.includes("Tales 1.epub &middot;"));
+});
