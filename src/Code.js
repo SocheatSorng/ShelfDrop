@@ -398,7 +398,7 @@ function checkSetup() {
   );
   if (usage.nearlyFull) {
     console.log(
-      "Script Properties are nearly full: ask Claude how to remove old _sent: marks safely.",
+      "Script Properties are nearly full: see docs/setup.md part L to remove old _sent: marks.",
     );
   }
   const lastError = services.state.get("_lastError");

@@ -64,7 +64,7 @@ npm run check
 `npm run audit`. `npm run format` fixes formatting. There is no build step: the files in `src/` are
 the app, and `npm run deploy` uploads and deploys them (see the guide).
 
-Optional but recommended, the pre-commit hooks (gitleaks, private-key check, lint, tests, audit):
+Optional but recommended, the pre-commit hooks (needs [uv](https://docs.astral.sh/uv/)) (gitleaks, private-key check, lint, tests, audit):
 
 ```powershell
 uv tool install pre-commit
@@ -76,7 +76,8 @@ pre-commit install
 
 Tests never use real books, Drive folders, Kindle addresses or tokens. A test
 (`tests/repo-hygiene.test.js`) fails if a real Kindle address or token ever appears in the repo, and
-another (`tests/docs.test.js`) keeps this README and the guide in step with the code.
+another (`tests/docs.test.js`) checks that the commands, links, settings, messages and limits named in
+this README and the guide match the code.
 
 ## License
 

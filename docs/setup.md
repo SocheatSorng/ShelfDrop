@@ -5,8 +5,8 @@ Drive. It takes about an hour, most of it in Google's and Amazon's settings page
 Windows PowerShell; the commands are the same on macOS and Linux, except where noted.
 
 **Keep three things private:** your Kindle address, the access token, and your link with `?t=` in
-it. Don't paste them into chats, issues or screenshots. ShelfDrop never shows them on its pages or in
-its logs.
+it. Don't paste them into chats, issues or screenshots. ShelfDrop never displays them as text on its pages
+or in its logs. The token is part of every link on the page, so it is in the Kindle browser's history.
 
 ## What you need
 
@@ -60,7 +60,9 @@ Books/                      ← the top folder: this is what you share
 - Books can be directly in a series folder, in **volume folders** inside it, or both. Folders inside
   a volume folder are ignored.
 - A series with the same name in two accounts shows once, with the volumes from both.
-- Keep each list under about 40 items. Very long lists are cut short, and the page says so.
+- Keep lists short enough to scroll on the Kindle. Hard limits: 300 books and 100 folders per
+  folder, and 40 volume folders per series. Past them, the page says "Some books aren't shown: a
+  folder holds too many files."
 
 Then, for each top folder:
 
@@ -140,7 +142,8 @@ npm run --silent token | clip
 
 This puts a new token on the clipboard without showing it (on macOS use `| pbcopy` instead of
 `| clip`). After pasting it, clear it from Windows' clipboard history: press **Win+V** and delete
-the entry.
+the entry. If clipboard sync is on (Settings → System → Clipboard), the token also went to your
+Microsoft account: turn sync off before making tokens.
 
 Then **Save script properties**.
 
@@ -204,7 +207,10 @@ npm ci
 npm run deploy
 ```
 
-It prints the same Web app URL, so your bookmark keeps working. If Google asks for permissions
+If you changed the time zone (part N), commit that change first (`git commit -am "My time zone"`),
+so `git pull` can merge it.
+
+The deploy prints the same Web app URL, so your bookmark keeps working. If Google asks for permissions
 again, check that the list is still only the two in part F.
 
 ## J. Change the token
@@ -263,10 +269,12 @@ next `npm run deploy` from `main` does.
   see its error. **checkSetup** also shows the `Last error` and `Last folder error`. The Kindle
   address and token are hidden in ShelfDrop's own log lines. Google's error text comes in the
   account's language.
-- **`.deployment.json` is lost:** the next `npm run deploy` makes a second Web app URL, and the old
-  one stays live. List them with `npm run clasp -- deployments`, remove the old one with
-  `npm run clasp -- undeploy <deploymentId>`, set `WEB_APP_URL` to the new URL and send the link
-  again (part G).
+- **`.deployment.json` is lost:** make it again before deploying, or the deploy makes a second Web
+  app URL. Your `WEB_APP_URL` is `https://script.google.com/macros/s/<deploymentId>/exec`; create
+  `.deployment.json` in your ShelfDrop folder with `{ "deploymentId": "<deploymentId>" }`. If a
+  second URL was already made, `npm run clasp -- deployments` lists them; remove the unwanted one
+  with `npm run clasp -- undeploy <deploymentId>`, but never the one marked `@HEAD` (that is the
+  editor's own `/dev` deployment).
 - **checkSetup says Script Properties are nearly full:** every sent book leaves a mark of about 55
   bytes, so this takes thousands of books. Delete some of the oldest `_sent:` entries in Script
   Properties (their values are times in milliseconds; smaller is older). That only removes those
@@ -277,8 +285,8 @@ next `npm run deploy` from `main` does.
 - Keep the ShelfDrop Google account for ShelfDrop only.
 - Never give anyone edit access to your shelf folders, and list only accounts you fully trust in
   `FOLDER_ID`.
-- Leave the `_sent:` and `_count:` entries in Script Properties alone: they are the sent marks and
-  today's count, not settings.
+- Leave the `_sent:` and `_count:` entries in Script Properties alone (except as in part L): they
+  are the sent marks and today's count, not settings.
 - If the link leaks, or you lend the Kindle, change the token (part J).
 
 ## N. Another time zone

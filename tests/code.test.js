@@ -1149,7 +1149,7 @@ test("checkSetup reports how much of Script Properties the sent marks use", () =
   const logs = out.logs;
   const line = logs.find((l) => l.startsWith("Sent marks:"));
   assert.ok(line && line.includes("9000 books"), line);
-  assert.ok(logs.some((l) => l.includes("nearly full")));
+  assert.ok(logs.some((l) => l.includes("nearly full") && l.includes("docs/setup.md part L")));
   const small = fakeGlobals();
   loadSrc(small.globals).checkSetup();
   assert.ok(!small.out.logs.some((l) => l.includes("nearly full")));

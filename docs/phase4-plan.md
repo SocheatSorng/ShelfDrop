@@ -2,7 +2,7 @@
 
 Goal: someone could set ShelfDrop up from one guide, and the repo is ready to publish as 1.0.0.
 Branch `phase-4-release`, version 1.0.0. Spec: [spec.md](spec.md), phase 4 row. No app behaviour
-changes in this phase: `src/` stays as it is.
+changes in this phase (one `checkSetup` log line changes after the review).
 
 ## Decisions made (2026-11-24)
 
@@ -53,3 +53,29 @@ changes in this phase: `src/` stays as it is.
 10. **Owner:** redeploy as 1.0.0 (`git switch --detach phase-4-release`, `npm run deploy`,
     `git switch main`), check the bookmark opens. Merge to `main` with `--ff-only` on the owner's
     yes, re-run checks on `main`, tag `v1.0.0` locally. The owner pushes `main` and the tag.
+
+## Review (2026-11-24)
+
+`agent-skills:code-reviewer`, read-only, over `main..phase-4-release`, reading the guide as a
+newcomer against `src/` and `tools/`. Verdict: approve; no must-fix items. Fixed:
+
+- The lost-`.deployment.json` recovery now rebuilds the file from `WEB_APP_URL` (same URL, same
+  bookmark) and warns never to undeploy `@HEAD`. clasp 3.4.1 still has `deployments`/`undeploy`.
+- The list limits are the real ones (300 books, 100 folders, 40 volume folders), with the page's
+  note quoted.
+- Part I: commit a time zone change before `git pull`. Part M points at part L for old `_sent:`
+  marks, and `checkSetup`'s "nearly full" line now points at the guide instead of "ask Claude"
+  (the only `src/` change this phase; tested).
+- `tests/docs.test.js` also checks the messages the guide quotes and the limits it names against
+  the code's constants (each checked by breaking the guide once); the README says exactly that.
+- Nits: the token is in the Kindle browser's history (it is in every link); clipboard sync sends
+  the token to the Microsoft account; uv is needed for the pre-commit hooks.
+
+Left: the `v1.0.0` tag must be pushed with `main`, or part K's example fails for people who clone.
+
+## Publishing scan (2026-11-24)
+
+All 41 unpushed commits: author and committer are the noreply address; no Kindle address, token,
+deployment ID or e-mail address. One item: commit `691a46e` (phase 2 guide) still holds the owner's
+Windows path in history; the file no longer does. gitleaks is not installed on this PC; the
+`security.yml` workflow runs it on push.

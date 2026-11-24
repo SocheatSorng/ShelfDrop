@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { loadSrc } = require("./helpers/apps-script");
 
 const root = path.join(__dirname, "..");
 const docs = ["README.md", "docs/setup.md", "CHANGELOG.md"];
@@ -51,14 +52,73 @@ test("the guide lists every Script Property the code reads, and no others", () =
   assert.deepEqual([...listed].sort(), [...settingsRead].sort());
 });
 
-test("the guide's editor functions (**checkSetup**, ...) exist in src/", () => {
-  const src = srcText();
-  const names = [...read("docs/setup.md").matchAll(/\*\*([a-z]+[A-Z][A-Za-z]+)\*\*/g)].map(
-    (m) => m[1],
+test("editor functions the docs name (**checkSetup**, `sendLinkToKindle`) exist in src/", () => {
+  const defined = new Set(
+    srcText()
+      .split(String.fromCharCode(10))
+      .filter((line) => line.startsWith("function "))
+      .map((line) => line.slice("function ".length).split("(")[0]),
   );
-  assert.ok(names.includes("checkSetup") && names.includes("sendLinkToKindle"));
-  for (const name of names) {
-    assert.ok(src.includes(`\nfunction ${name}(`), `no function ${name} in src/`);
+  // Bold names everywhere; backticked ones too outside the guide, whose backticks also hold
+  // manifest keys such as `timeZone`.
+  const named = docs.flatMap((doc) => {
+    const pattern =
+      doc === "docs/setup.md"
+        ? /\*\*([a-z]+[A-Z][A-Za-z]+)\*\*/g
+        : /(?:\*\*|`)([a-z]+[A-Z][A-Za-z]+)(?:\*\*|`)/g;
+    return [...read(doc).matchAll(pattern)].map((m) => m[1]);
+  });
+  assert.ok(named.includes("checkSetup") && named.includes("sendLinkToKindle"));
+  for (const name of named) assert.ok(defined.has(name), `no function ${name} in src/`);
+});
+
+test("messages the guide quotes are the ones the code shows or logs", () => {
+  const guide = read("docs/setup.md");
+  const src = srcText().replace(/&#39;/g, "'");
+  const quoted = [
+    "Script Properties look right.",
+    "loose books.",
+    "in FOLDER_ID couldn't be read",
+    "Not found",
+    "Setup needed",
+    "ShelfDrop link",
+    "Open my bookshelf",
+    "Refresh",
+    "Some books aren't shown: a",
+    "folder holds too many files.",
+    "Last error",
+    "Last folder error",
+    "see docs/setup.md part L",
+  ];
+  for (const text of quoted) {
+    assert.ok(src.includes(text), `src/ doesn't say "${text}"`);
+    assert.ok(
+      guide.includes(text) || text.startsWith("see docs"),
+      `the guide doesn't quote "${text}"`,
+    );
+  }
+  assert.match(guide, /^## L\. /m, "checkSetup points at part L");
+});
+
+test("limits named in the README and the guide match the code", () => {
+  const app = loadSrc();
+  const guide = read("docs/setup.md").replace(/\s+/g, " ");
+  const readme = read("README.md").replace(/\s+/g, " ");
+  const both = [`up to ${app.DEFAULT_MAX_MB} MB`, `${app.DAILY_SEND_CAP} books a day`];
+  for (const text of both) {
+    assert.ok(guide.includes(text), `the guide doesn't say "${text}"`);
+    assert.ok(readme.includes(text), `the README doesn't say "${text}"`);
+  }
+  assert.equal(app.GMAIL_MAX_BYTES, app.DEFAULT_MAX_MB * 1024 * 1024);
+  for (const text of [
+    `once every ${app.RESEND_COOLDOWN_MS / 60000} minutes`,
+    `kept for ${app.LISTING_CACHE_SECONDS / 60} minutes`,
+    `up to ${app.MAX_SHELF_FOLDERS} IDs`,
+    `1 to ${app.DEFAULT_MAX_MB}`,
+    `${app.MAX_LISTED_FILES} books and ${app.MAX_LISTED_FOLDERS} folders`,
+    `${app.MAX_VOLUME_FOLDERS} volume folders`,
+  ]) {
+    assert.ok(guide.includes(text), `the guide doesn't say "${text}"`);
   }
 });
 
