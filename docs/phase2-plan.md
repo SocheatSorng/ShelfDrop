@@ -125,3 +125,33 @@ yet"; series first, then loose books.
 
 Defaults kept: no volume counts on the series list; empty series show "No books yet"; series first,
 then loose books.
+
+## UI pass (2026-11-24)
+
+`kindle-ui-designer` at 618 x 647 with fake books. Back and Refresh moved to a top bar on the first
+screen (Back repeated after the last volume of a series longer than 5); rows 58 px with a bold "›"
+on tappable rows; too-big books italic, not only grey; sizes in rem so the Kindle's large text
+works; the "couldn't be read" note boxed.
+
+## Security review (2026-11-24)
+
+`security-auditor`, read-only, over `main..phase-2-shelf`. No must-fix items; phase 1's protections
+hold. Fixed, each with tests:
+
+- **SF1:** an unreadable shelf folder is noted as `_lastFolderError` (never hiding a failed send in
+  `_lastError`) and remembered for 5 minutes, so it costs one Drive read per 5 minutes, not one per
+  page. `checkSetup` shows both.
+- **SF2:** folder listings stop at 300 files and 100 folders; the page says "Some books aren't
+  shown".
+- **N12:** a series page re-checks in Drive that its folders are still on the shelf.
+- **N17:** the window title is cut to 100 characters. **N18:** a blank folder name shows as
+  "(no name)".
+
+For the owner's guide (task 8):
+
+- **N13:** every account in `FOLDER_ID` is fully trusted: anything it adds to its folder (even a
+  folder named like one of your series) can be sent to your Kindle with one tap.
+- **N14:** don't list a folder and one of its own subfolders in `FOLDER_ID`.
+- **N15:** Refresh on the shelf page reloads the series list; Refresh on a series page reloads its
+  volumes.
+- **N17 check:** once deployed, open a series named with `<b>&"'` and confirm the tab shows it as text.

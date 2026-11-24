@@ -257,3 +257,12 @@ test("pages: series names are escaped on the shelf and as the series page title"
   const page = app.renderSeries({ ...ctx, series: nasty, seriesId: "ser-1", volumes: [] });
   assert.ok(!page.html.includes("<b "));
 });
+
+// Security review SF2: a listing cut short at 300 files / 100 folders says so, without an ID.
+test("pages: shelf and series pages say when some books aren't shown", () => {
+  const text = "Some books aren&#39;t shown: a folder holds too many files.";
+  assert.ok(shelfPage({ truncated: 1 }).html.includes(text));
+  assert.ok(seriesPage([], { truncated: 1 }).html.includes(text));
+  assert.ok(!shelfPage().html.includes("aren&#39;t shown"));
+  assert.ok(!seriesPage([]).html.includes("aren&#39;t shown"));
+});

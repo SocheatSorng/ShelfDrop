@@ -114,6 +114,13 @@ function bookItem(ctx, book) {
   );
 }
 
+// Shown when a folder listing stopped at its size limit (review SF2). No folder ID is shown.
+function truncatedNote(ctx) {
+  return ctx.truncated
+    ? '<p class="note">Some books aren&#39;t shown: a folder holds too many files.</p>'
+    : "";
+}
+
 // The first page: series (linked by their first folder ID), then loose books.
 function renderShelf(ctx) {
   const parts = [];
@@ -125,6 +132,7 @@ function renderShelf(ctx) {
         " couldn&#39;t be read.</p>",
     );
   }
+  parts.push(truncatedNote(ctx));
   if (ctx.series.length) {
     const items = ctx.series.map(
       (series) =>
@@ -155,7 +163,7 @@ function renderSeries(ctx) {
   // A long list also gets Back at its end, for a reader who scrolled to the last volume.
   const end =
     ctx.volumes.length > 5 ? '<p class="end">' + backLink({ ...ctx, seriesId: null }) + "</p>" : "";
-  return page(ctx.series.name, list + end, {
+  return page(ctx.series.name, truncatedNote(ctx) + list + end, {
     back: backLink({ ...ctx, seriesId: null }),
     refresh: refreshLink(ctx, { s: ctx.seriesId }),
   });
