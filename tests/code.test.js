@@ -876,7 +876,7 @@ test("a broken cache or an unreadable folder never breaks the page", () => {
     },
   );
   // Only a short "unreadable" marker is kept for the dead folder (review SF1), never a listing.
-  assert.equal(cache.map.get("dir+:" + FOLDER_B).value, JSON.stringify({ unreadable: true }));
+  assert.equal(cache.map.get("v2:dir+:" + FOLDER_B).value, JSON.stringify({ unreadable: true }));
 });
 
 // Phase 2 security review SF1: a dead shelf folder must not bury the last send failure, and must
@@ -1271,4 +1271,22 @@ test("safe messages: shelf, series, confirm and Sent pages, and every tab title,
       assert.ok(!tab.includes(secret), name + ": tab title");
     }
   }
+});
+
+// Bug found on the Kindle (phase 5): listings cached by 1.0.0 have no folder name, so for up to 30
+// minutes after the deploy the first page said "Folder 1", "Folder 2". Listings in the old cache
+// format must never be used.
+test("a listing cached before folder names were kept is ignored, so names show at once", () => {
+  const cache = memoryCache();
+  const old = (id) => {
+    const { folders, files } = listingOf(id);
+    return JSON.stringify({ folders, files }); // 1.0.0's format: no name
+  };
+  cache.put("dir+:" + FOLDER, old(FOLDER), 1800);
+  cache.put("dir+:" + FOLDER_B, old(FOLDER_B), 1800);
+  const { page, calls } = run("GET", { t: TOKEN }, { cache });
+  assert.ok(page.html.includes(">Light Novels<") && page.html.includes(">Manga<"));
+  assert.ok(!page.html.includes("Folder 1"));
+  assert.equal(calls.listFolder, 2);
+  assert.equal(run("GET", { t: TOKEN, m: "1" }, { cache }).page.title, "Light Novels");
 });

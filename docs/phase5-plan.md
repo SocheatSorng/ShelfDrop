@@ -72,3 +72,11 @@ the leak sweeps now cover the single-folder pages; a series moved to another mai
 cache's 30 minutes stops showing under the old one (the fresh check requires that main folder); `s`
 and `f` win over `m`. For the owner's test: a folder named like `<b>x</b> & "q"` shows literally in
 the tab and the title. Notes left: a duplicate `FOLDER_ID` entry is harmless (first place wins).
+
+### Bug found on the Kindle (2026-11-24)
+
+After the deploy (@12) the first page showed "Folder 1", "Folder 2" instead of the folder names:
+the listings cached by 1.0.0 have no name, and the plan let the page fall back to the place number
+until the cache ran out (up to 30 minutes). A stale cache must never change what the reader sees,
+so cache keys now carry a format version (`LISTING_CACHE_FORMAT`, `v2:`) and 1.0.0's entries are
+never read. Test: a listing cached in the old format is ignored and the names show at once.

@@ -176,6 +176,8 @@ function noteFailure_(services, settings, label, error, key) {
 }
 
 var LISTING_CACHE_SECONDS = 30 * 60;
+// Change this whenever what a cached listing holds changes.
+var LISTING_CACHE_FORMAT = "v2:";
 var UNREADABLE_CACHE_SECONDS = 5 * 60;
 // A shelf folder holding a whole library must not slow every page or overflow the cache's 100 KB
 // per entry (review SF2): listings stop here and the page says some books aren't shown.
@@ -190,7 +192,9 @@ var VOLUME_TIME_BUDGET_MS = 15 * 1000;
 // per page (review SF1). Listings are cached (books and folders only) unless refresh is set.
 // The cache only feeds the lists: the send check always reads Drive.
 function readListing_(services, settings, folderId, withFolders, refresh) {
-  const key = (withFolders ? "dir+:" : "dir:") + folderId;
+  // The key names the format: listings cached by 1.0.0 have no folder name and must never be used
+  // (they showed "Folder 1" on the Kindle for up to 30 minutes after the phase 5 deploy).
+  const key = LISTING_CACHE_FORMAT + (withFolders ? "dir+:" : "dir:") + folderId;
   if (!refresh) {
     const cached = cacheGet_(services, key);
     if (cached) return cached.unreadable ? null : cached;
