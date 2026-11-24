@@ -316,3 +316,48 @@ test("send check: the result names the book's main folder, for a loose book, ser
   const inVolume = app.checkSendable(book("x.pdf", "vol-2"), shelfIds, LIMIT, [volume, series]);
   assert.equal(inVolume.mainId, SHELF_A);
 });
+
+// Phase 5, refinement 2: a volume folder with two or more books is one row that opens its page;
+// with one book it stays a book row labelled with the folder name.
+test("volumes: a folder with two or more books is one folder row with its count, sorted with the rest", () => {
+  const seriesListing = {
+    folders: [
+      folder("v1", "Volume 1", "ser-1"),
+      folder("v2", "Volume 2", "ser-1"),
+      folder("v3", "Volume 3", "ser-1"),
+    ],
+    files: [book("Tales Artbook.pdf", "ser-1")],
+  };
+  const volumeListings = new Map(
+    Object.entries({
+      v1: { folders: [], files: [book("SmallPDF.pdf", "v1"), book("readme.txt", "v1")] },
+      v2: {
+        folders: [],
+        files: [
+          book("AoT v2 part 2.pdf", "v2"),
+          book("AoT v2 part 1.pdf", "v2", { size: 40 * MB }), // too big still counts
+          book("cover.jpg", "v2"),
+        ],
+      },
+      v3: { folders: [], files: [] }, // no books: not shown
+    }),
+  );
+  const rows = plain(app.listVolumes([seriesListing], LIMIT, volumeListings));
+  assert.deepEqual(
+    rows.map((r) => (r.volume ? ["folder", r.id, r.label, r.count] : ["book", r.label, r.name])),
+    [
+      ["book", "Tales Artbook.pdf", "Tales Artbook.pdf"],
+      ["book", "Volume 1", "SmallPDF.pdf"],
+      ["folder", "v2", "Volume 2", 2],
+    ],
+  );
+});
+
+test("send check: a book in a volume folder names that folder too", () => {
+  const series = folder("ser-1", "One", SHELF_A);
+  const volume = folder("vol-2", "Volume 2", "ser-1");
+  const check = app.checkSendable(book("x.pdf", "vol-2"), [SHELF_A], LIMIT, [volume, series]);
+  assert.equal(check.volumeId, "vol-2");
+  const direct = app.checkSendable(book("y.pdf", "ser-1"), [SHELF_A], LIMIT, [series]);
+  assert.equal(direct.volumeId, undefined);
+});

@@ -30,6 +30,8 @@ const FILES = {
   "tales-12-id-01": { name: "Tales Vol 12.pdf", size: MB, parentIds: ["ser-tales-b01"] },
   "tales-x-id-001": { name: "Tales Artbook.pdf", size: MB, parentIds: ["ser-extras-01"] },
   "tales-5-id-001": { name: "scan_005.epub", size: MB, parentIds: ["vol-tales-05"] },
+  "tales-6b-id-01": { name: "part 2.epub", size: MB, parentIds: ["vol-tales-06"] },
+  "tales-6a-id-01": { name: "part 1.pdf", size: MB, parentIds: ["vol-tales-06"] },
   "other-1-id-001": { name: "Other 1.epub", size: MB, parentIds: ["ser-other-b01"] },
   "private-2-id01": { name: "Private 2.epub", size: MB, parentIds: ["not-shelf-sub1"] },
 };
@@ -44,6 +46,7 @@ const FOLDERS = {
   "ser-tales-b01": { name: "tales", parentIds: [FOLDER_B] },
   "ser-other-b01": { name: "Other Series", parentIds: [FOLDER_B] },
   "vol-tales-05": { name: "Volume 5", parentIds: ["ser-tales-a01"] }, // a volume folder
+  "vol-tales-06": { name: "Volume 6", parentIds: ["ser-tales-a01"] }, // two books: its own page
   "ser-extras-01": { name: "Extras", parentIds: ["vol-tales-05"] }, // three levels down
   "not-shelf-sub1": { name: "Private stuff", parentIds: ["other-folder-01"] },
 };
@@ -725,7 +728,7 @@ test("a series page lists its folder's volumes only, never a same-named series o
   );
   const a = run("GET", { t: TOKEN, s: "ser-tales-a01" }).page;
   assert.equal(a.title, "Tales");
-  assert.deepEqual(names(a.html), ["Tales Vol 3.epub", "Volume 5"]);
+  assert.deepEqual(names(a.html), ["Tales Vol 3.epub", "Volume 5", "Volume 6"]);
   assert.ok(a.html.includes("scan_005.epub") && !a.html.includes("Artbook"));
   assert.ok(
     a.html.includes('href="' + URL + "?t=" + TOKEN + '&amp;m=1">&larr; Back to the folder</a>'),
@@ -813,8 +816,8 @@ test("the shelf and series listings come from the cache the second time", () => 
   const folder = run("GET", { t: TOKEN, m: "1" }, { cache });
   assert.equal(folder.calls.listFolder, 0); // the first page cached it, name included
   assert.equal(folder.page.title, "Light Novels");
-  // the "Tales" folder and its "Volume 5" folder
-  assert.equal(run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache }).calls.listFolder, 2);
+  // the "Tales" folder and its "Volume 5" and "Volume 6" folders
+  assert.equal(run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache }).calls.listFolder, 3);
   const series = run("GET", { t: TOKEN, s: "ser-tales-a01" }, { cache });
   assert.equal(series.calls.listFolder, 0);
   assert.ok(series.page.html.includes("Volume 5"));
@@ -827,7 +830,7 @@ test("Refresh reads Drive again and updates the cache", () => {
   assert.equal(run("GET", { t: TOKEN, r: "1" }, { cache }).calls.listFolder, 2);
   assert.equal(run("GET", { t: TOKEN, m: "2", r: "1" }, { cache }).calls.listFolder, 1);
   const series = run("GET", { t: TOKEN, s: "ser-tales-a01", r: "1" }, { cache });
-  assert.equal(series.calls.listFolder, 2); // "Tales" and "Volume 5"; the main folder is cached
+  assert.equal(series.calls.listFolder, 3); // "Tales", "Volume 5", "Volume 6"; the main folder is cached
 });
 
 test("the cache keeps only what the pages need: no token, no address, no non-books", () => {
@@ -1173,6 +1176,13 @@ test("safe messages: no page shows the address, folder IDs, IDs in text or Googl
     ["shelf unreadable", "GET", { t: TOKEN }, { listFolder: boom }],
     ["folder unreadable", "GET", { t: TOKEN, m: "2" }, { listFolder: boom }],
     ["unknown folder", "GET", { t: TOKEN, m: "7" }, {}],
+    ["unknown volume", "GET", { t: TOKEN, s: "ser-tales-a01", v: "vol-nope-001" }, {}],
+    [
+      "volume unreadable",
+      "GET",
+      { t: TOKEN, s: "ser-tales-a01", v: "vol-tales-06" },
+      { listFolder: (id) => (id === "vol-tales-06" ? boom() : listingOf(id)) },
+    ],
     ["folder ID as m", "GET", { t: TOKEN, m: FOLDER }, {}],
     ["one folder, unreadable", "GET", { t: TOKEN }, { properties: oneFolder, listFolder: boom }],
     ["one folder, Drive down", "GET", send, { properties: oneFolder, getFile: boom }],
@@ -1251,6 +1261,8 @@ test("safe messages: shelf, series, confirm and Sent pages, and every tab title,
     ["folder", "GET", { t: TOKEN, m: "1" }],
     ["other folder", "GET", { t: TOKEN, m: "2" }],
     ["series", "GET", { t: TOKEN, s: "ser-tales-a01" }],
+    ["volume", "GET", { t: TOKEN, s: "ser-tales-a01", v: "vol-tales-06" }],
+    ["volume book", "GET", { t: TOKEN, f: "tales-6a-id-01" }],
     ["loose book", "GET", { t: TOKEN, f: "b-loose-id-01" }],
     ["confirm", "GET", { t: TOKEN, f: "vol-1-epub-id" }],
     ["sent", "POST", { t: TOKEN, f: "vol-2-epub-id" }],
@@ -1289,4 +1301,62 @@ test("a listing cached before folder names were kept is ignored, so names show a
   assert.ok(!page.html.includes("Folder 1"));
   assert.equal(calls.listFolder, 2);
   assert.equal(run("GET", { t: TOKEN, m: "1" }, { cache }).page.title, "Light Novels");
+});
+
+// Phase 5, refinement 2: a volume folder with two or more books is a row that opens its own page.
+test("a volume folder with two books is one row on the series page, opening its own page", () => {
+  const names = (html) => [...html.matchAll(/class="book[^"]*"[^>]*>([^<]+)</g)].map((m) => m[1]);
+  const series = run("GET", { t: TOKEN, s: "ser-tales-a01" }).page;
+  assert.deepEqual(names(series.html), ["Tales Vol 3.epub", "Volume 5", "Volume 6"]);
+  assert.ok(
+    series.html.includes('s=ser-tales-a01&amp;v=vol-tales-06">Volume 6<span class="meta">2 books'),
+  );
+  assert.ok(!series.html.includes("part 1.pdf"));
+  const { page, calls } = run("GET", { t: TOKEN, s: "ser-tales-a01", v: "vol-tales-06" });
+  assert.equal(page.title, "Volume 6");
+  assert.deepEqual(names(page.html), ["part 1.pdf", "part 2.epub"]);
+  assert.ok(page.html.includes('&amp;s=ser-tales-a01">&larr; Back to the series</a>'));
+  assert.ok(calls.listFolder <= 4); // main folders, the series, this volume: not every volume
+});
+
+// Security review N6, for volumes: a volume ID from the URL is used only if the series' own
+// listing has it and Drive, read fresh, says it is still in that series.
+test("a volume page opens only a volume folder of that series, checked fresh in Drive", () => {
+  for (const v of ["vol-tales-05x", "ser-tales-b01", "not-shelf-sub1", "ser-extras-01", ""]) {
+    const { page } = run("GET", { t: TOKEN, s: "ser-tales-a01", v });
+    assert.equal(page.title, "Not on the shelf", v);
+    assert.ok(!page.html.includes("part 1.pdf"), v);
+  }
+  // Listed in the (maybe 30-minute-old) cache, but moved away in Drive since.
+  const moved = (id) =>
+    id === "vol-tales-06"
+      ? { id, trashed: false, name: "Volume 6", parentIds: ["somewhere-else"] }
+      : has(FOLDERS, id)
+        ? { id, trashed: false, ...FOLDERS[id] }
+        : null;
+  const gone = run(
+    "GET",
+    { t: TOKEN, s: "ser-tales-a01", v: "vol-tales-06" },
+    { getFolder: moved },
+  );
+  assert.equal(gone.page.title, "Not on the shelf");
+  // A volume of another series, with this series in the URL.
+  assert.equal(
+    run("GET", { t: TOKEN, s: "ser-tales-b01", v: "vol-tales-06" }).page.title,
+    "Not on the shelf",
+  );
+});
+
+test("a book from a two-book volume goes back to the volume; from a one-book volume, to the series", () => {
+  const confirm = run("GET", { t: TOKEN, f: "tales-6a-id-01" }).page;
+  assert.equal(confirm.title, "Send to Kindle?");
+  assert.ok(
+    confirm.html.includes('&amp;s=ser-tales-a01&amp;v=vol-tales-06">&larr; Back to the volume</a>'),
+  );
+  const sent = run("POST", { t: TOKEN, f: "tales-6a-id-01" });
+  assert.equal(sent.page.title, "Sent");
+  assert.equal(sent.calls.sent.length, 1);
+  assert.ok(sent.page.html.includes('v=vol-tales-06">&larr; Back to the volume</a>'));
+  const single = run("GET", { t: TOKEN, f: "tales-5-id-001" }).page;
+  assert.ok(single.html.includes('&amp;s=ser-tales-a01">&larr; Back to the series</a>'));
 });

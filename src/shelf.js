@@ -57,7 +57,7 @@ function folderLabel(folder) {
 // (never from the URL). mainId is the shelf folder (main folder) it is under:
 //   { mainId, seriesId: null }         a loose book directly in a shelf folder
 //   { mainId, seriesId }               a book directly in a series folder (parent is a shelf folder)
-//   { mainId, seriesId, label }        a book in a volume folder (parent is a series folder)
+//   { mainId, seriesId, volumeId, label }  a book in a volume folder (parent is a series folder)
 //   null                               anywhere else, deeper, trashed, or a folder couldn't be read
 function locateFile(file, shelfIds, folders) {
   if (!file || file.trashed) return null;
@@ -73,8 +73,14 @@ function locateFile(file, shelfIds, folders) {
   if (series) return { mainId: shelfParent(series), seriesId: series.id };
   for (const volume of parentFolders) {
     const owner = (volume.parentIds || []).map(byId).find((folder) => folder && isSeries(folder));
-    if (owner)
-      return { mainId: shelfParent(owner), seriesId: owner.id, label: folderLabel(volume) };
+    if (owner) {
+      return {
+        mainId: shelfParent(owner),
+        seriesId: owner.id,
+        volumeId: volume.id,
+        label: folderLabel(volume),
+      };
+    }
   }
   return null;
 }
@@ -96,6 +102,7 @@ function checkSendable(file, shelfIds, maxBytes, folders) {
     book: toBook(file, maxBytes, where.label),
     seriesId: where.seriesId,
     mainId: where.mainId,
+    volumeId: where.volumeId,
   };
 }
 
@@ -174,21 +181,29 @@ function findSeries(shelf, folderId) {
   return shelf.series.find((series) => series.ids.includes(folderId)) || null;
 }
 
-// A series' volumes: the books directly in its folders, plus the books directly in each volume
-// folder (a folder inside a series folder), labelled with that folder's name. volumeListings is a
-// Map from a volume folder ID to its listing (null if it couldn't be read). Deeper is ignored.
+// A series' rows: the books directly in its folders, and one row per volume folder (a folder
+// inside a series folder). volumeListings is a Map from a volume folder ID to its listing (null if
+// it couldn't be read). Deeper is ignored. A volume folder with one book is that book, labelled
+// with the folder's name; with two or more it is a folder row { volume: true, id, label, name,
+// count } that opens the volume page (owner's choice, phase 5); with none it isn't shown.
 function listVolumes(listings, maxBytes, volumeListings) {
-  const books = [];
+  const rows = [];
   for (const listing of listings || []) {
     if (!listing) continue;
-    books.push(...listBooks(listing.files, maxBytes));
+    rows.push(...listBooks(listing.files, maxBytes));
     for (const folder of listing.folders || []) {
       if (folder.trashed || !volumeListings) continue;
       const volume = volumeListings.get(folder.id);
-      if (volume) books.push(...listBooks(volume.files, maxBytes, folderLabel(folder)));
+      if (!volume) continue;
+      const label = folderLabel(folder);
+      const books = listBooks(volume.files, maxBytes, label);
+      if (books.length === 1) rows.push(books[0]);
+      if (books.length > 1) {
+        rows.push({ volume: true, id: folder.id, label, name: label, count: books.length });
+      }
     }
   }
-  return books.sort(compareBooks);
+  return rows.sort(compareBooks);
 }
 
 // The volume folders whose listings a series page needs.

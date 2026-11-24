@@ -22,10 +22,12 @@ var PAGE_CSS = [
   "ul{list-style:none;margin:0;padding:0;border-top:2px solid #000}",
   "li{position:relative;border-bottom:2px solid #000}",
   ".book{display:flex;flex-direction:column;justify-content:center;min-height:3.5rem;padding:.65rem 2.25rem .65rem .25rem;color:#000;text-decoration:none}",
-  // Rows that open another list (a main folder, a series) are bold, and a gap splits them from the
-  // book rows below them, so in one merged list a reader can tell "opens a page" from "sends a book".
+  // Rows that open another list (a main folder, a series, a volume folder) are bold. On a folder
+  // page a gap splits them from the book rows below, so a reader can tell "opens a page" from
+  // "sends a book"; on a series page volume folders sit in natural order among the books.
   ".dir .book{font-weight:bold}",
-  ".dir+li:not(.dir){margin-top:1rem;border-top:2px solid #000}",
+  ".dir .meta{font-weight:normal}",
+  ".split .dir+li:not(.dir){margin-top:1rem;border-top:2px solid #000}",
   "a.book:after{content:'\\203A';position:absolute;right:.5rem;top:50%;margin-top:-1rem;font-size:2rem;line-height:2rem;font-weight:bold}",
   ".off{color:#333}",
   ".off .meta{font-style:italic}",
@@ -84,7 +86,11 @@ function folderParams(ctx, n) {
 function backLink(ctx) {
   let params = { t: ctx.token };
   let to = "shelf";
-  if (ctx.seriesId) {
+  if (ctx.seriesId && ctx.volumeId) {
+    // A book in a volume folder with several books (checked fresh by the send check).
+    params = { t: ctx.token, s: ctx.seriesId, v: ctx.volumeId };
+    to = "volume";
+  } else if (ctx.seriesId) {
     params = { t: ctx.token, s: ctx.seriesId };
     to = "series";
   } else if (ctx.mainNo) {
@@ -167,12 +173,13 @@ function truncatedNote(ctx) {
 }
 
 // A list row linking to another page of the app.
-function linkItem(ctx, params, name) {
+function linkItem(ctx, params, name, meta) {
   return (
     '<li class="dir"><a class="book" target="_top" href="' +
     escapeHtml(appLink(ctx.appUrl, { t: ctx.token, ...params })) +
     '">' +
     escapeHtml(name) +
+    (meta ? '<span class="meta">' + escapeHtml(meta) + "</span>" : "") +
     "</a></li>"
   );
 }
@@ -214,7 +221,7 @@ function renderShelf(ctx) {
     .concat(ctx.loose.map((book) => bookItem(ctx, book)));
   parts.push(
     items.length
-      ? "<ul>" + items.join("") + "</ul>"
+      ? '<ul class="split">' + items.join("") + "</ul>"
       : "<p>No series or books in this folder yet.</p>",
   );
   return page(ctx.main.name, parts.join(""), {
@@ -223,10 +230,17 @@ function renderShelf(ctx) {
   });
 }
 
+// A series row: a book, or a volume folder with several books (opens its volume page).
+function seriesItem(ctx, row) {
+  return row.volume
+    ? linkItem(ctx, { s: ctx.seriesId, v: row.id }, row.label, row.count + " books")
+    : bookItem(ctx, row);
+}
+
 // One series: its volumes in natural order.
 function renderSeries(ctx) {
   const list = ctx.volumes.length
-    ? "<ul>" + ctx.volumes.map((book) => bookItem(ctx, book)).join("") + "</ul>"
+    ? "<ul>" + ctx.volumes.map((row) => seriesItem(ctx, row)).join("") + "</ul>"
     : "<p>No books yet.</p>";
   // A long list also gets Back at its end, for a reader who scrolled to the last volume.
   const end =
@@ -234,6 +248,20 @@ function renderSeries(ctx) {
   return page(ctx.series.name, truncatedNote(ctx) + list + end, {
     back: backLink({ ...ctx, seriesId: null }),
     refresh: refreshLink(ctx, { s: ctx.seriesId }),
+  });
+}
+
+// A volume folder with several books (phase 5): its books by file name, in natural order. Back
+// goes to its series.
+function renderVolume(ctx) {
+  const back = backLink({ ...ctx, volumeId: null });
+  const list = ctx.books.length
+    ? "<ul>" + ctx.books.map((book) => bookItem(ctx, book)).join("") + "</ul>"
+    : "<p>No books yet.</p>";
+  const end = ctx.books.length > 5 ? '<p class="end">' + back + "</p>" : "";
+  return page(ctx.volume.name, truncatedNote(ctx) + list + end, {
+    back,
+    refresh: refreshLink(ctx, { s: ctx.seriesId, v: ctx.volume.id }),
   });
 }
 

@@ -337,3 +337,60 @@ test("pages: folder and series rows are marked as lists; book rows are not", () 
   assert.ok(/<li><a class="book"[^>]*f=id-LooseOneepub/.test(html));
   assert.equal(foldersPage().html.split('<li class="dir">').length - 1, 2);
 });
+
+// Phase 5, refinement 2: volume folders with two or more books.
+const VOLUME_ROW = { volume: true, id: "vol-2", label: "Volume <2>", name: "Volume <2>", count: 3 };
+
+test("pages: a volume folder with several books is a bold row with its count, linking to its page", () => {
+  const [single] = app.listBooks([file("SmallPDF.pdf")], LIMIT, "Volume 1");
+  const { html } = seriesPage([single, VOLUME_ROW]);
+  assert.ok(
+    html.includes(
+      `<li class="dir"><a class="book" target="_top" href="${URL}?t=${TOKEN}&amp;s=ser-2&amp;v=vol-2">Volume &lt;2&gt;<span class="meta">3 books</span></a></li>`,
+    ),
+  );
+  assert.ok(html.includes('Volume 1<span class="meta">SmallPDF.pdf &middot; PDF'));
+  assert.ok(!html.includes("<2>"));
+  // The gap between folder rows and book rows belongs to the folder page only.
+  assert.ok(!html.includes('<ul class="split">'));
+  assert.ok(shelfPage().html.includes('<ul class="split">'));
+});
+
+test("pages: a volume page is titled by the folder, lists file names, goes back to the series", () => {
+  const books = app.listBooks([file("AoT v2 part 2.pdf"), file("AoT v2 part 1.pdf")], LIMIT);
+  const page = app.renderVolume({
+    ...ctx,
+    seriesId: "ser-2",
+    volume: { id: "vol-2", name: "Volume <2>" },
+    books,
+  });
+  assert.equal(page.title, "Volume <2>");
+  assert.ok(page.html.includes("<h1>Volume &lt;2&gt;</h1>"));
+  assert.ok(page.html.indexOf("AoT v2 part 1.pdf") < page.html.indexOf("AoT v2 part 2.pdf"));
+  assert.ok(
+    page.html.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-2">&larr; Back to the series</a>`),
+  );
+  assert.ok(
+    page.html.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-2&amp;v=vol-2&amp;r=1">Refresh</a>`),
+  );
+  assert.ok(page.html.includes(`href="${URL}?t=${TOKEN}&amp;f=id-AoTv2part1pdf"`));
+  const empty = app.renderVolume({
+    ...ctx,
+    seriesId: "ser-2",
+    volume: { id: "v", name: "V" },
+    books: [],
+  });
+  assert.ok(empty.html.includes("No books yet"));
+});
+
+test("pages: confirm and sent pages of a book in a multi-book volume go back to that volume", () => {
+  const book = app.listBooks([file("a.epub")], LIMIT, "Volume 2")[0];
+  for (const render of [app.renderConfirm, app.renderSent]) {
+    const html = render({ ...ctx, book, seriesId: "ser-2", volumeId: "vol-2" }).html;
+    assert.ok(
+      html.includes(
+        `href="${URL}?t=${TOKEN}&amp;s=ser-2&amp;v=vol-2">&larr; Back to the volume</a>`,
+      ),
+    );
+  }
+});

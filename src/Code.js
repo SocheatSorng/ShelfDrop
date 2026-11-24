@@ -94,6 +94,17 @@ function handleVerified_(request, services, settings, props) {
     ctx.mainNo = settings.folderIds.indexOf(main.id) + 1;
     const series = { ...found, ids };
     const listings = ids.map((id) => readListing_(services, settings, id, true, refresh));
+    if (params.v !== undefined) {
+      return volumePage_(
+        services,
+        settings,
+        { ...ctx, seriesId: params.s },
+        ids,
+        listings,
+        params.v,
+        refresh,
+      );
+    }
     // One level of volume folders inside the series (scope change 2026-11-24), at most 40 and for
     // about 15 s, so a cold or refreshed series page can't run for a minute (review SF-A).
     const started = services.now();
@@ -120,6 +131,14 @@ function handleVerified_(request, services, settings, props) {
   const check = checkSendable(file, settings.folderIds, settings.maxBytes, parents);
   if (!check.ok) return renderMessage(ctx, "Can't send this", problemText_(check.reason));
   ctx.seriesId = check.seriesId;
+  // A book in a volume folder with several books goes back to that folder's page (phase 5). The
+  // count comes from the folder's listing (cached); the folder itself was just checked fresh.
+  if (check.volumeId) {
+    const volume = readListing_(services, settings, check.volumeId, false, false);
+    if (volume && listBooks(volume.files, settings.maxBytes).length > 1) {
+      ctx.volumeId = check.volumeId;
+    }
+  }
   ctx.mainNo = settings.folderIds.indexOf(check.mainId) + 1;
 
   if (request.method !== "POST") return renderConfirm({ ...ctx, book: check.book });
@@ -247,6 +266,29 @@ function cachePut_(services, key, value, seconds) {
 function stillOnShelf_(services, folderId, mainId) {
   const folder = services.getFolder(folderId);
   return Boolean(folder && !folder.trashed && (folder.parentIds || []).includes(mainId));
+}
+
+// A volume folder's page (phase 5): its books by file name. Only a volume folder that the series'
+// own listing has (review N6) and that Drive, read fresh, still puts in one of the series' folders
+// (review N12) is read. seriesIds are the series' folders, already checked fresh.
+function volumePage_(services, settings, ctx, seriesIds, listings, volumeId, refresh) {
+  const listed = listings
+    .flatMap((listing) => (listing && listing.folders) || [])
+    .find((folder) => folder.id === volumeId && !folder.trashed);
+  const fresh = listed ? services.getFolder(volumeId) : null;
+  const stillThere =
+    fresh && !fresh.trashed && (fresh.parentIds || []).some((id) => seriesIds.includes(id));
+  if (!stillThere) {
+    return renderMessage(ctx, "Not on the shelf", "This volume isn't on the shelf any more.");
+  }
+  const listing = readListing_(services, settings, volumeId, false, refresh);
+  if (!listing) return renderMessage(ctx, "Can't open this volume", "Try again later.");
+  return renderVolume({
+    ...ctx,
+    volume: { id: volumeId, name: folderLabel(listed) },
+    books: listBooks(listing.files, settings.maxBytes),
+    truncated: listing.truncated ? 1 : 0,
+  });
 }
 
 // The main folder ID at place m ("1", "2", ... from the URL) in FOLDER_ID, or null.
