@@ -385,7 +385,68 @@ test("a failed send counts for nothing (no cooldown, no daily count)", () => {
       },
     },
   );
-  assert.deepEqual(state.keys(), []);
+  assert.deepEqual(state.keys(), ["_lastError"]);
+});
+
+// Found in E6: the owner couldn't see why a send failed, because Apps Script hides the log lines
+// of web app runs by anonymous visitors. The latest failure is kept for checkSetup to show.
+test("a failed send keeps the redacted reason as _lastError", () => {
+  const state = memoryState();
+  run(
+    "POST",
+    { t: TOKEN, f: "vol-1-epub-id" },
+    {
+      state,
+      sendMail: () => {
+        throw new Error(`Limit Exceeded: Email Total Attachments Size for ${KINDLE} ${TOKEN}`);
+      },
+    },
+  );
+  const note = state.get("_lastError");
+  assert.ok(note.startsWith("2026-11-24T12:00:00.000Z send failed: Limit Exceeded"), note);
+  assert.ok(!note.toLowerCase().includes(KINDLE) && !note.includes(TOKEN), note);
+});
+
+test("_lastError is cut to a sane length, and failing to save it changes nothing", () => {
+  const state = memoryState();
+  run(
+    "POST",
+    { t: TOKEN, f: "vol-1-epub-id" },
+    {
+      state,
+      sendMail: () => {
+        throw new Error("x".repeat(5000));
+      },
+    },
+  );
+  assert.ok(state.get("_lastError").length < 340);
+  const broken = {
+    ...memoryState(),
+    set: () => {
+      throw new Error("properties full");
+    },
+  };
+  const { page } = run(
+    "POST",
+    { t: TOKEN, f: "vol-1-epub-id" },
+    {
+      state: broken,
+      sendMail: () => {
+        throw new Error("Service unavailable");
+      },
+    },
+  );
+  assert.equal(page.title, "Not sent");
+});
+
+test("checkSetup shows the last error, or none", () => {
+  const clean = fakeGlobals();
+  loadSrc(clean.globals).checkSetup();
+  assert.ok(clean.out.logs.includes("Last error: none"));
+  const { globals, out } = fakeGlobals();
+  out.state.set("_lastError", "2026-11-24T12:00:00.000Z send failed: something");
+  loadSrc(globals).checkSetup();
+  assert.ok(out.logs.includes("Last error: 2026-11-24T12:00:00.000Z send failed: something"));
 });
 
 test("sending happens inside the lock; a busy lock sends nothing; GET never locks", () => {

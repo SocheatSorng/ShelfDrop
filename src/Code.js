@@ -36,9 +36,7 @@ function handleRequest(request, services) {
   try {
     return handleVerified_(request, services, settings);
   } catch (error) {
-    services.log(
-      "request failed: " + redact(error && error.message, [settings.kindleEmail, settings.token]),
-    );
+    noteFailure_(services, settings, "request failed", error);
     return renderError();
   }
 }
@@ -71,9 +69,7 @@ function handleVerified_(request, services, settings) {
     try {
       services.sendMail(buildBookMail(settings.kindleEmail, check.book, services.getBlob(file.id)));
     } catch (error) {
-      services.log(
-        "send failed: " + redact(error && error.message, [settings.kindleEmail, settings.token]),
-      );
+      noteFailure_(services, settings, "send failed", error);
       return { sent: false, text: sendFailureText(error) };
     }
     recordSend(services.state, file.id, now, limits.count);
@@ -83,6 +79,23 @@ function handleVerified_(request, services, settings) {
   if (!outcome.sent) return renderMessage(ctx, "Not sent", outcome.text);
   services.log("sent file " + file.id);
   return renderSent({ ...ctx, book: check.book });
+}
+
+// Logs a failure with the secrets hidden, and keeps the latest one in Script Properties
+// (_lastError) so checkSetup can show it: Apps Script often hides the log lines of web app runs
+// by anonymous visitors such as the Kindle.
+function noteFailure_(services, settings, label, error) {
+  const text = (
+    label +
+    ": " +
+    redact(error && error.message, [settings.kindleEmail, settings.token])
+  ).slice(0, 300);
+  services.log(text);
+  try {
+    services.state.set("_lastError", new Date(services.now()).toISOString() + " " + text);
+  } catch {
+    // Saving the note must never turn a handled failure into an unhandled one.
+  }
 }
 
 function problemText_(reason) {
@@ -160,6 +173,8 @@ function checkSetup() {
     console.log("Books found in the folder: " + books.length);
   }
   console.log("E-mails left today: " + services.remainingQuota());
+  const lastError = services.state.get("_lastError");
+  console.log("Last error: " + (lastError || "none"));
   if (settings.problems.includes("WEB_APP_URL")) {
     console.log(
       "Set WEB_APP_URL to the Web app URL that `npm run deploy` printed (it ends with /exec).",
