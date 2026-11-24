@@ -1,5 +1,6 @@
 // Settings come from the Apps Script project's Script Properties, never from the code.
-//   FOLDER_ID     the Drive folder with the books
+//   FOLDER_ID     the Drive folder(s) with the books: one ID, or up to 10 separated by commas
+//                 (books from several Google accounts, each sharing its folder as Viewer)
 //   KINDLE_EMAIL  the Send to Kindle address
 //   ACCESS_TOKEN  the secret in the bookmarked link
 //   WEB_APP_URL   the web app's /exec URL that `npm run deploy` prints. Asking Apps Script for
@@ -8,9 +9,23 @@
 //   MAX_MB        optional lower size limit in MB, 1 to 25 (default 25: Gmail refuses more)
 
 var DEFAULT_MAX_MB = 25;
+var MAX_SHELF_FOLDERS = 10;
 
 function isDriveId(id) {
   return typeof id === "string" && /^[A-Za-z0-9_-]{10,200}$/.test(id);
+}
+
+// The shelf folder IDs from FOLDER_ID, without repeats; [] if any is invalid or there are too many.
+function parseFolderIds(value) {
+  const ids = [
+    ...new Set(
+      String(value || "")
+        .split(/[\s,]+/)
+        .filter(Boolean),
+    ),
+  ];
+  if (!ids.length || ids.length > MAX_SHELF_FOLDERS || !ids.every(isDriveId)) return [];
+  return ids;
 }
 
 function isWebAppUrl(url) {
@@ -31,8 +46,8 @@ function readSettings(props) {
   const source = props || {};
   const problems = [];
 
-  const folderId = String(source.FOLDER_ID || "").trim();
-  if (!isDriveId(folderId)) problems.push("FOLDER_ID");
+  const folderIds = parseFolderIds(source.FOLDER_ID);
+  if (!folderIds.length) problems.push("FOLDER_ID");
 
   const kindleEmail = String(source.KINDLE_EMAIL || "").trim();
   if (!isKindleEmail(kindleEmail)) problems.push("KINDLE_EMAIL");
@@ -54,7 +69,7 @@ function readSettings(props) {
   }
 
   return {
-    folderId,
+    folderIds,
     kindleEmail,
     token,
     webAppUrl,

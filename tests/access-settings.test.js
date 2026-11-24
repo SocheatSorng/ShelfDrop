@@ -44,7 +44,7 @@ const good = {
 test("settings: valid properties have no problems and a 25 MB default limit", () => {
   const s = plain(app.readSettings(good));
   assert.deepEqual(s.problems, []);
-  assert.equal(s.folderId, good.FOLDER_ID);
+  assert.deepEqual(s.folderIds, [good.FOLDER_ID]);
   assert.equal(s.maxBytes, 25 * 1024 * 1024);
 });
 
@@ -95,4 +95,36 @@ test("settings: WEB_APP_URL must be a script.google.com /exec deployment URL", (
       bad,
     );
   }
+});
+
+// Phase 2 decision 1: books live in several Google accounts, one shared folder each.
+test("settings: FOLDER_ID takes several folder IDs, comma- or space-separated", () => {
+  const a = "1AbCdEfGhIjKlMnOpQrStUv";
+  const b = "1ZyXwVuTsRqPoNmLkJiHgFe";
+  for (const value of [
+    a + "," + b,
+    " " + a + " , " + b + " ",
+    a + "\n" + b,
+    a + "," + b + "," + a,
+  ]) {
+    const s = plain(app.readSettings({ ...good, FOLDER_ID: value }));
+    assert.deepEqual(s.problems, [], value);
+    assert.deepEqual(s.folderIds, [a, b], value);
+  }
+});
+
+test("settings: one bad ID, an empty list or more than 10 folders is a FOLDER_ID problem", () => {
+  const ids = Array.from(
+    { length: 11 },
+    (_, i) => "1AbCdEfGhIjKlMnOpQr" + String(i).padStart(4, "0"),
+  );
+  for (const value of ["", " , ", "1AbCdEfGhIjKlMnOpQrStUv,../x", ids.join(",")]) {
+    const s = plain(app.readSettings({ ...good, FOLDER_ID: value }));
+    assert.deepEqual(s.problems, ["FOLDER_ID"], value);
+    assert.deepEqual(s.folderIds, [], value);
+  }
+  assert.deepEqual(
+    plain(app.readSettings({ ...good, FOLDER_ID: ids.slice(0, 10).join(",") }).problems),
+    [],
+  );
 });

@@ -67,7 +67,7 @@ test("shelf: other formats and trashed files are left out; big files are marked"
 });
 
 test("shelf: a file is sendable only if it is a book inside the bookshelf and not too big", () => {
-  assert.equal(app.checkSendable(file("a.epub"), FOLDER, LIMIT).ok, true);
+  assert.equal(app.checkSendable(file("a.epub"), [FOLDER], LIMIT).ok, true);
   const cases = [
     [null, "not-found"],
     [file("a.epub", MB, { parentIds: ["someone-elses-folder"] }), "not-found"],
@@ -77,7 +77,7 @@ test("shelf: a file is sendable only if it is a book inside the bookshelf and no
     [file("big.pdf", LIMIT + 1), "too-big"],
   ];
   for (const [f, reason] of cases) {
-    assert.deepEqual(plain(app.checkSendable(f, FOLDER, LIMIT)), { ok: false, reason });
+    assert.deepEqual(plain(app.checkSendable(f, [FOLDER], LIMIT)), { ok: false, reason });
   }
 });
 
@@ -174,7 +174,7 @@ test("shelf: Google-native files and empty files are never books, whatever their
   ];
   assert.deepEqual(plain(app.listBooks(fakes, LIMIT)), []);
   for (const f of fakes) {
-    assert.deepEqual(plain(app.checkSendable(f, FOLDER, LIMIT)), {
+    assert.deepEqual(plain(app.checkSendable(f, [FOLDER], LIMIT)), {
       ok: false,
       reason: "not-a-book",
     });
@@ -183,5 +183,5 @@ test("shelf: Google-native files and empty files are never books, whatever their
 
 test("shelf: an EPUB uploaded with a generic type still counts", () => {
   const f = file("Odd upload.epub", MB, { mimeType: "application/octet-stream" });
-  assert.equal(app.checkSendable(f, FOLDER, LIMIT).ok, true);
+  assert.equal(app.checkSendable(f, [FOLDER], LIMIT).ok, true);
 });

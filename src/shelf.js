@@ -43,8 +43,9 @@ function listBooks(files, maxBytes) {
 
 // Whether a requested file may be sent. A file outside the bookshelf answers "not-found", the same
 // as a file that doesn't exist, so the page never confirms what else is in the owner's Drive.
-function checkSendable(file, folderId, maxBytes) {
-  if (!file || file.trashed || !(file.parentIds || []).includes(folderId)) {
+function checkSendable(file, shelfIds, maxBytes) {
+  const parents = (file && file.parentIds) || [];
+  if (!file || file.trashed || !parents.some((id) => shelfIds.includes(id))) {
     return { ok: false, reason: "not-found" };
   }
   if (!isBookFile(file)) return { ok: false, reason: "not-a-book" };

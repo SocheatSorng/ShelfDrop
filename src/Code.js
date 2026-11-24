@@ -46,12 +46,12 @@ function handleVerified_(request, services, settings) {
   const ctx = { appUrl: settings.webAppUrl, token: settings.token };
 
   if (params.f === undefined) {
-    const files = services.listFolder(settings.folderId);
+    const files = settings.folderIds.flatMap((id) => services.listFolder(id));
     return renderList({ ...ctx, books: listBooks(files, settings.maxBytes) });
   }
 
   const file = isDriveId(params.f) ? services.getFile(params.f) : null;
-  const check = checkSendable(file, settings.folderId, settings.maxBytes);
+  const check = checkSendable(file, settings.folderIds, settings.maxBytes);
   if (!check.ok) return renderMessage(ctx, "Can't send this", problemText_(check.reason));
 
   if (request.method !== "POST") return renderConfirm({ ...ctx, book: check.book });
@@ -173,7 +173,8 @@ function checkSetup() {
       : "Script Properties look right.",
   );
   if (!settings.problems.includes("FOLDER_ID")) {
-    const books = listBooks(services.listFolder(settings.folderId), settings.maxBytes);
+    const files = settings.folderIds.flatMap((id) => services.listFolder(id));
+    const books = listBooks(files, settings.maxBytes);
     console.log("Books found in the folder: " + books.length);
   }
   console.log("E-mails left today: " + services.remainingQuota());
