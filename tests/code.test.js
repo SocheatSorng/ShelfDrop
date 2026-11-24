@@ -166,8 +166,24 @@ test("the first page lists the main folders; each folder page shows its series, 
   const { page } = run("GET", { t: TOKEN });
   assert.equal(page.title, "ShelfDrop");
   assert.deepEqual(names(page.html), ["Light Novels", "Manga"]);
-  assert.ok(page.html.includes('href="' + URL + "?t=" + TOKEN + '&amp;m=1">Light Novels</a>'));
-  assert.ok(page.html.includes('href="' + URL + "?t=" + TOKEN + '&amp;m=2">Manga</a>'));
+  assert.ok(
+    page.html.includes(
+      'href="' +
+        URL +
+        "?t=" +
+        TOKEN +
+        '&amp;m=1">Light Novels<span class="ic fo" aria-hidden="true"></span></a>',
+    ),
+  );
+  assert.ok(
+    page.html.includes(
+      'href="' +
+        URL +
+        "?t=" +
+        TOKEN +
+        '&amp;m=2">Manga<span class="ic fo" aria-hidden="true"></span></a>',
+    ),
+  );
   const first = run("GET", { t: TOKEN, m: "1" }).page;
   assert.equal(first.title, "Light Novels");
   assert.deepEqual(names(first.html), [

@@ -25,6 +25,15 @@ var PAGE_CSS = [
   // Rows that open another list (a main folder, a series, a volume folder) are bold. On a folder
   // page a gap splits them from the book rows below, so a reader can tell "opens a page" from
   // "sends a book"; on a series page volume folders sit in natural order among the books.
+  // Icons (phase 5, owner's choice B): drawn in CSS so they cost no image, SVG or script. A book
+  // is a page with its type printed in it; a folder is a box with a tab. Both follow the text colour,
+  // so too-big rows are grey and Kindle dark mode inverts them.
+  "li .book{padding-left:3.5rem}",
+  ".ic{position:absolute;left:.25rem;top:50%;margin-top:-1.3rem;width:2.5rem;height:2.6rem;border:2px solid;border-radius:2px;font:bold .75rem/1 Arial,sans-serif;display:flex;align-items:flex-end;justify-content:center;padding-bottom:.3rem}",
+  ".ic.fo{height:1.8rem;margin-top:-.75rem;padding:0}",
+  ".ic.fo:before{content:'';position:absolute;top:-.55rem;left:-2px;width:1rem;height:.4rem;border:2px solid;border-bottom:0;border-radius:2px 2px 0 0}",
+  ".pick{display:flex;align-items:center}",
+  ".pick .ic{position:static;flex:none;margin:0 .9rem 0 0;width:2.8rem;height:3.2rem}",
   ".dir .book{font-weight:bold}",
   ".dir .meta{font-weight:normal}",
   ".split .dir+li:not(.dir){margin-top:1rem;border-top:2px solid #000}",
@@ -120,14 +129,17 @@ function bookLabel(book) {
   return escapeHtml(book.label || book.name);
 }
 
-// Type and size, led by the file name when the row shows a volume folder's name instead, and
+// The book's type as an icon: a page labelled EPUB or PDF (real text, so it is read out too).
+function typeIcon(book) {
+  return '<span class="ic">' + escapeHtml(book.kind.toUpperCase()) + "</span>";
+}
+
+// Size, led by the file name when the row shows a volume folder's name instead, and
 // followed by "✓ sent 24 Nov" if the book was sent before.
 function bookMeta(book, ctx) {
   const file = book.label && book.label !== book.name ? escapeHtml(book.name) + " &middot; " : "";
   return (
     file +
-    book.kind.toUpperCase() +
-    " &middot; " +
     // A no-break space keeps "3.4 MB" on one line when a long meta line wraps.
     escapeHtml(formatSize(book.size)).replace(" ", "&nbsp;") +
     sentMark(ctx, book)
@@ -151,7 +163,9 @@ function bookItem(ctx, book) {
       bookLabel(book) +
       '<span class="meta">' +
       bookMeta(book, ctx) +
-      " &middot; too big to send</span></span></li>"
+      " &middot; too big to send</span>" +
+      typeIcon(book) +
+      "</span></li>"
     );
   }
   return (
@@ -161,7 +175,9 @@ function bookItem(ctx, book) {
     bookLabel(book) +
     '<span class="meta">' +
     bookMeta(book, ctx) +
-    "</span></a></li>"
+    "</span>" +
+    typeIcon(book) +
+    "</a></li>"
   );
 }
 
@@ -180,7 +196,7 @@ function linkItem(ctx, params, name, meta) {
     '">' +
     escapeHtml(name) +
     (meta ? '<span class="meta">' + escapeHtml(meta) + "</span>" : "") +
-    "</a></li>"
+    '<span class="ic fo" aria-hidden="true"></span></a></li>'
   );
 }
 
@@ -269,11 +285,13 @@ function renderVolume(ctx) {
 function renderConfirm(ctx) {
   return page(
     "Send to Kindle?",
-    '<p class="name">' +
+    '<div class="pick">' +
+      typeIcon(ctx.book) +
+      '<p class="name">' +
       bookLabel(ctx.book) +
       '<span class="meta">' +
       bookMeta(ctx.book, ctx) +
-      "</span></p>" +
+      "</span></p></div>" +
       '<form method="post" target="_top" action="' +
       escapeHtml(ctx.appUrl) +
       '">' +

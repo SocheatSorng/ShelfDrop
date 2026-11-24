@@ -219,7 +219,11 @@ test("pages: a folder page is titled by the folder, its series linked, then its 
   assert.equal(title, "Light Novels");
   assert.ok(html.includes("<h1>Light Novels</h1>"));
   assert.ok(!html.includes("Bookshelf") && !html.includes("<h2>"));
-  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;s=ser-1">Sample Series</a>`));
+  assert.ok(
+    html.includes(
+      `href="${URL}?t=${TOKEN}&amp;s=ser-1">Sample Series<span class="ic fo" aria-hidden="true"></span></a>`,
+    ),
+  );
   assert.ok(html.indexOf("Sample Series") < html.indexOf("Loose One.epub"));
   assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;f=id-LooseOneepub"`));
 });
@@ -227,8 +231,16 @@ test("pages: a folder page is titled by the folder, its series linked, then its 
 test("pages: the folder list is titled ShelfDrop and links each main folder in the given order", () => {
   const { title, html } = foldersPage();
   assert.equal(title, "ShelfDrop");
-  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;m=1">Light Novels</a>`));
-  assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;m=2">Manga</a>`));
+  assert.ok(
+    html.includes(
+      `href="${URL}?t=${TOKEN}&amp;m=1">Light Novels<span class="ic fo" aria-hidden="true"></span></a>`,
+    ),
+  );
+  assert.ok(
+    html.includes(
+      `href="${URL}?t=${TOKEN}&amp;m=2">Manga<span class="ic fo" aria-hidden="true"></span></a>`,
+    ),
+  );
   assert.ok(html.indexOf("Light Novels") < html.indexOf("Manga"));
   assert.ok(html.includes(`href="${URL}?t=${TOKEN}&amp;r=1">Refresh</a>`));
   assert.ok(!html.includes("Back to"));
@@ -321,7 +333,7 @@ test("pages: a volume-folder book shows its folder name, with the file name in t
   const [book] = app.listBooks([file("scan<5>.epub")], LIMIT, 'Volume "5" & <i>');
   for (const { html } of [seriesPage([book]), app.renderConfirm({ ...ctx, book })]) {
     assert.ok(html.includes("Volume &quot;5&quot; &amp; &lt;i&gt;"));
-    assert.ok(html.includes("scan&lt;5&gt;.epub &middot; EPUB"));
+    assert.ok(html.includes("scan&lt;5&gt;.epub &middot; 1.0&nbsp;MB"));
     assert.ok(!html.includes("<i>"));
   }
   const [plainBook] = app.listBooks([file("Tales 1.epub")], LIMIT);
@@ -346,10 +358,10 @@ test("pages: a volume folder with several books is a bold row with its count, li
   const { html } = seriesPage([single, VOLUME_ROW]);
   assert.ok(
     html.includes(
-      `<li class="dir"><a class="book" target="_top" href="${URL}?t=${TOKEN}&amp;s=ser-2&amp;v=vol-2">Volume &lt;2&gt;<span class="meta">3 books</span></a></li>`,
+      `<li class="dir"><a class="book" target="_top" href="${URL}?t=${TOKEN}&amp;s=ser-2&amp;v=vol-2">Volume &lt;2&gt;<span class="meta">3 books</span><span class="ic fo" aria-hidden="true"></span></a></li>`,
     ),
   );
-  assert.ok(html.includes('Volume 1<span class="meta">SmallPDF.pdf &middot; PDF'));
+  assert.ok(html.includes('Volume 1<span class="meta">SmallPDF.pdf &middot; 1.0&nbsp;MB'));
   assert.ok(!html.includes("<2>"));
   // The gap between folder rows and book rows belongs to the folder page only.
   assert.ok(!html.includes('<ul class="split">'));
@@ -393,4 +405,47 @@ test("pages: confirm and sent pages of a book in a multi-book volume go back to 
       ),
     );
   }
+});
+
+// Phase 5, refinement 3 (owner's choice B): a folder icon on rows that open a page, a page labelled
+// EPUB or PDF on book rows and the confirm page; the type leaves the meta line.
+test("pages: book rows carry an EPUB or PDF icon, and the meta line no longer repeats the type", () => {
+  const books = app.listBooks([file("a.epub"), file("b.pdf"), file("huge.pdf", 40 * MB)], LIMIT);
+  const { html } = seriesPage(books);
+  assert.ok(
+    /href="[^"]*f=id-aepub">a\.epub<span class="meta">1\.0&nbsp;MB<\/span><span class="ic">EPUB<\/span><\/a>/.test(
+      html,
+    ),
+  );
+  assert.ok(
+    /f=id-bpdf">b\.pdf<span class="meta">1\.0&nbsp;MB<\/span><span class="ic">PDF<\/span><\/a>/.test(
+      html,
+    ),
+  );
+  assert.ok(
+    /<span class="book off">huge\.pdf<span class="meta">40&nbsp;MB &middot; too big to send<\/span><span class="ic">PDF<\/span><\/span>/.test(
+      html,
+    ),
+  );
+  assert.ok(!html.includes("&middot; EPUB") && !html.includes("EPUB &middot;"));
+});
+
+test("pages: rows that open a page carry a folder icon; the confirm page shows the type icon", () => {
+  assert.ok(
+    foldersPage().html.includes('Light Novels<span class="ic fo" aria-hidden="true"></span></a>'),
+  );
+  assert.ok(
+    shelfPage().html.includes('Sample Series<span class="ic fo" aria-hidden="true"></span></a>'),
+  );
+  const volume = seriesPage([VOLUME_ROW]).html;
+  assert.ok(volume.includes('3 books</span><span class="ic fo" aria-hidden="true"></span></a>'));
+  const book = app.listBooks([file("a.pdf")], LIMIT)[0];
+  const confirm = app.renderConfirm({ ...ctx, book }).html;
+  assert.ok(confirm.includes('<div class="pick"><span class="ic">PDF</span><p class="name">a.pdf'));
+  assert.ok(!app.renderSent({ ...ctx, book }).html.includes('class="ic'));
+});
+
+test("pages: the icons are drawn in CSS: no images, no SVG, no script", () => {
+  const html = seriesPage(app.listBooks([file("a.epub")], LIMIT)).html + foldersPage().html;
+  assert.ok(!/<img|<svg|<script|url\(/.test(html));
 });
