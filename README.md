@@ -8,8 +8,8 @@ through Amazon's **Send to Kindle**.
 - No jailbreak and no changes to the Kindle. You never sign in to Google on the Kindle.
 - The page is protected by a long secret token in its link. You can change the token at any time.
 - ShelfDrop only **reads** your Drive folders. It never moves, renames or deletes your files.
-- Series, volumes in natural order (Vol 2 before Vol 10), loose books, books from several Google
-  accounts on one shelf, and "✓ sent <date>" on every book you have sent.
+- Each account's main folder by its own name, then its series, volumes in natural order (Vol 2
+  before Vol 10) and loose books, and "✓ sent <date>" on every book you have sent.
 - EPUB and PDF only, up to 25 MB (Gmail's limit), at most 15 books a day. Amazon receives a copy of
   every book you send (that is how Send to Kindle works).
 

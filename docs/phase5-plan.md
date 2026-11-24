@@ -27,9 +27,11 @@ in `FOLDER_ID`) by its own name.
   cached with it for 30 minutes. A listing cached before the update has no name; it shows "Folder 2"
   (its place in `FOLDER_ID`) until the cache refreshes. An unreadable folder is left out of the list,
   with the existing note "1 shelf folder couldn't be read".
-- **Links:** a folder page is `?t=…&m=<folder ID>`. Only an ID that is in `FOLDER_ID` is accepted;
-  anything else shows "Not on the shelf". A series page (`s=`) is looked up in the listing of the
-  main folder that holds it, and goes back to that folder's page.
+- **Links:** a folder page is `?t=…&m=1` (its place in `FOLDER_ID`, 1 to 99), never the folder ID:
+  folder IDs are settings that no page may show (phase 3 rule, enforced by the leak sweeps; the first
+  design used the ID and those tests caught it). Any other `m` shows "Not on the shelf" and reads
+  nothing. A series page (`s=`) is looked up in the listing of the main folder that holds it, and
+  goes back to that folder's page.
 - **Back links:** series page → "Back to the folder"; folder page → "Back to the shelf" (only with
   two or more main folders); confirm, Sent and message pages → the series, or for a loose book its
   main folder (from the send check, which reads Drive fresh).
@@ -39,8 +41,8 @@ in `FOLDER_ID`) by its own name.
 ### Tasks (tests first, then code; lint and tests after each)
 
 1. This plan.
-2. Model (`src/shelf.js`): `mainFolders`, `findMainOfSeries`; `locateFile`/`checkSendable` also
-   return the main folder ID.
+2. Model (`src/shelf.js`): `mainFolders`, `findMainOfSeries` (over `{ id, listing }` pairs);
+   `locateFile`/`checkSendable` also return the main folder ID.
 3. Pages (`src/pages.js`): `renderFolders`, `renderShelf` as the folder page, back links.
 4. Routing and adapter (`src/Code.js`): `m=`, the folder name in listings, single-folder shortcut,
    series looked up per main folder.
@@ -48,3 +50,8 @@ in `FOLDER_ID`) by its own name.
 6. UI pass (`kindle-ui-designer`) on the folder list and a folder page; security review
    (`agent-skills:security-auditor`: a new URL parameter that selects a Drive folder).
 7. Owner: deploy `phase-5-refine`, test on the Kindle; merge on the owner's yes; re-tag `v1.0.0`.
+
+### Built (2026-11-24)
+
+Tasks 1–5 done: 150 tests (model, pages, requests, leak sweeps over the new pages and an `m` set to a
+folder ID). `checkSetup` now logs `Shelf: N series, M loose books in F folders.`

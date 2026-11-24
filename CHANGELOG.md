@@ -5,8 +5,13 @@ phase's plan and results are in `docs/`.
 
 ## 1.0.0 (2026-11-24)
 
-The first release. No changes to how the app works since 0.3.0.
+The first release.
 
+- The first page lists each main folder (each folder in `FOLDER_ID`) by its own name; tapping one
+  shows its series and loose books. With one main folder, its page opens straight away. Folders
+  and series from different accounts are no longer merged. Links name a folder by its place in
+  `FOLDER_ID`, never by its ID.
+- `checkSetup` counts series per folder and points at the guide when Script Properties fill up.
 - One setup guide, [docs/setup.md](docs/setup.md), from nothing to a bookmark on the Kindle, with
   updating, changing the token, going back to an earlier version, troubleshooting and another time
   zone. The phase guides stay as history.

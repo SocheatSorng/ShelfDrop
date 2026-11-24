@@ -43,7 +43,7 @@ Use this account for ShelfDrop only.
 In each Google account that holds books, arrange one top folder like this (any names work):
 
 ```
-Books/                      ← the top folder: this is what you share
+Light Novels/               ← the main folder: this is what you share; its name is shown
   Some Series/              ← one folder per series
     Some Series Vol 1.epub
     Some Series Vol 2.epub
@@ -53,13 +53,16 @@ Books/                      ← the top folder: this is what you share
       any-file-name.pdf        with the file name underneath
     Volume 2/
       another-file.epub
-  A single book.epub        ← books here show under "Books" on the shelf page
+  A single book.epub        ← books here are listed after the series
 ```
 
 - Only **EPUB and PDF** files are listed. Files over 25 MB show "too big to send".
 - Books can be directly in a series folder, in **volume folders** inside it, or both. Folders inside
   a volume folder are ignored.
-- A series with the same name in two accounts shows once, with the volumes from both.
+- On the Kindle, the first page lists each account's main folder by its name, in the order of
+  `FOLDER_ID`; tap one to see its series and books. With only one main folder, its page opens
+  straight away. Folders and series from different accounts are never merged, even with the
+  same name, so give each main folder its own name ("Light Novels", "Manga").
 - Keep lists short enough to scroll on the Kindle. Hard limits: 300 books and 100 folders per
   folder, and 40 volume folders per series. Past them, the page says "Some books aren't shown: a
   folder holds too many files."
@@ -185,7 +188,7 @@ Open the bookmark, tap a series, tap a volume, tap **Send to Kindle**. The **Sen
 and the book is in your library a minute or two later (PDFs are often faster than EPUBs).
 
 - Every book you have sent shows **✓ sent 24 Nov** (the last time you sent it).
-- Lists are kept for 30 minutes. Added a book in Drive? Tap **Refresh** on the shelf or series page.
+- Lists are kept for 30 minutes. Added a book in Drive? Tap **Refresh** on the page that should show it.
 - Limits: 15 books a day (the day starts at midnight in the app's time zone, part N), and the same
   book at most once every 10 minutes. They stop a leaked link from flooding your Kindle.
 - Each page change takes several seconds on the Kindle. Most of that is Google's page frame and the
