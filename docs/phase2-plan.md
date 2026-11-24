@@ -155,3 +155,24 @@ For the owner's guide (task 8):
 - **N15:** Refresh on the shelf page reloads the series list; Refresh on a series page reloads its
   volumes.
 - **N17 check:** once deployed, open a series named with `<b>&"'` and confirm the tab shows it as text.
+
+## Scope change (2026-11-24): volume folders
+
+The owner's books in other accounts are arranged as **Series → Volume folder → book**, so one level
+of volume folders inside a series is now in scope (the intent said subfolders inside a series were
+out of scope).
+
+- A series page lists the books directly in the series folder **and** the books directly in each
+  folder inside it (a "volume folder"). Anything deeper is ignored.
+- **Row label (owner's choice):** a book in a volume folder shows the **volume folder's name**; the
+  line under it gives the file name, type and size. Books directly in the series show their file
+  name as before. All rows sort together by label in natural order (Volume 2 before Volume 10).
+- **Send check:** a file is sendable if its parent is a shelf folder (loose), a series folder (a
+  folder whose parent is a shelf folder), or a volume folder (a folder whose parent is a series
+  folder). Every folder in that chain is read fresh from Drive. Anything deeper is refused.
+- **Speed:** the first visit to a series reads one more folder per volume (about 0.2 s each), then
+  the 30-minute cache applies. A series with 30 volume folders may take several seconds the first
+  time.
+- Volume folders aren't re-checked against Drive on each series page (only series folders are,
+  N12): a volume folder moved away can still be listed for up to 30 minutes, but it can't be sent.
+- Security review of the deeper send check before the owner's tests.

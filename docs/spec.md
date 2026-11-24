@@ -151,7 +151,8 @@ function compareNatural(a, b) {
 
 - Direct downloads to the Kindle (fragile on the Kindle browser).
 - MOBI/AZW3/other formats, conversion or shrinking of files.
-- Nested subfolders inside a series.
+- Folders more than one level inside a series (one level of volume folders is in scope since
+  2026-11-24; see [phase2-plan.md](phase2-plan.md#scope-change-2026-11-24-volume-folders)).
 - Multiple users, PIN, Google sign-in on the Kindle.
 - Reading progress or sync beyond the "sent" mark.
 - Search box (maybe V2 if the shelf grows large).

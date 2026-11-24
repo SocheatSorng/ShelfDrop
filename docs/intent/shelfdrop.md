@@ -28,7 +28,8 @@ Confirmed by the owner on 2026-11-24 (interview with `agent-skills:interview-me`
   - Moving, renaming, deleting or editing anything in Drive. ShelfDrop only reads the folder.
   - Direct downloads to the Kindle.
   - MOBI, AZW3 or other formats.
-  - Subfolders inside a series.
+  - Folders more than one level inside a series. (Changed 2026-11-24 at the owner's request: one
+    level of volume folders inside a series is now in scope, e.g. `Series/Volume 2/book.pdf`.)
   - Other users, a PIN, or a Google sign-in on the Kindle.
   - Converting or shrinking files.
   - Reading progress or sync beyond the "sent" mark.
