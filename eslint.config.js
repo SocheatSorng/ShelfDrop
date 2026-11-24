@@ -14,6 +14,7 @@ const appsScriptGlobals = {
   Utilities: "readonly",
   Logger: "readonly",
   ScriptApp: "readonly",
+  console: "readonly",
 };
 
 // Apps Script loads every src/*.js file into one global scope, so a function or var declared at the
