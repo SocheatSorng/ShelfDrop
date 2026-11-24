@@ -81,3 +81,10 @@ path. At the owner's request the unpushed history (82ad185 onwards) was rewritte
 each rewritten commit differs from the old one only in that file, and `main` moved to the rewritten
 phase 3 commit. gitleaks is not installed on this PC; the
 `security.yml` workflow runs it on push.
+
+## Result (2026-11-24)
+
+Released as **1.0.0**. The owner redeployed (web app version @11, same URL) and checked that the
+bookmark still opens the shelf on the Kindle, then said to merge. `main` fast-forwarded to
+`phase-4-release`, checks re-run on `main`, tag `v1.0.0` made locally; the owner pushes `main` and
+the tag.

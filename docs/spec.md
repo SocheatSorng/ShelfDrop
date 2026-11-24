@@ -179,3 +179,9 @@ function compareNatural(a, b) {
   the daily limit (15) in Cambodia time, tests that no page leaks the address, IDs or Google's
   errors, a token change recipe, a UI pass and a security review (SF-1..SF-3 fixed). On the Kindle:
   T0–T4 passed. Details: [phase3-plan.md](phase3-plan.md#owners-tests-on-the-kindle-2026-11-24).
+- **Phase 4 (release), 2026-11-24: released as 1.0.0.** One setup guide
+  ([setup.md](setup.md)), a 1.0.0 README, MIT license, changelog, and a test that keeps the docs in
+  step with the code. A review (no must-fix items; fixes made) and a publishing scan; the unpushed
+  history was rewritten to drop a personal path. No hands-on guide test (owner's decision). Deployed
+  as version @11 at the same URL; the owner checked the bookmark on the Kindle. Details:
+  [phase4-plan.md](phase4-plan.md#result-2026-11-24).
