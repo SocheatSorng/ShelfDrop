@@ -20,11 +20,19 @@ its own Brave profile.
        Some Series Vol 2.epub
        Some Series Vol 10.pdf  ← shows after Vol 2 (natural order)
      Another Series/
+       Volume 1/               ← or one folder per volume: the row shows "Volume 1",
+         any-file-name.pdf        with the file name underneath
+       Volume 2/
+         another-file.epub
      A single book.epub        ← books here show under "Books" on the shelf page
    ```
 
    - Only **EPUB and PDF** files are shown. Files over 25 MB show "too big to send".
-   - Folders **inside** a series folder are ignored.
+   - Books can sit directly in the series folder, or in **volume folders** inside it (or both).
+     A volume folder's row shows the folder's name, so name the folders with their numbers
+     (Volume 2 comes before Volume 10). Folders inside a volume folder are ignored.
+   - The first time you open a series with many volume folders it can take a few seconds longer
+     (one Drive read per volume folder); after that the list is kept for 30 minutes.
    - A series with the same name in two accounts (capital letters and extra spaces don't matter)
      shows once, with the volumes from both.
    - Keep each list under about 40 items.
@@ -97,6 +105,10 @@ Open the bookmark. Write down for each: worked / didn't, and what you saw.
   roughly how many seconds it took.
 - **T2:** tap a series with several volumes. They are in natural order (Vol 2 before Vol 10).
   **Back to the shelf** and **Refresh** are at the top.
+- **T2b, volume folders:** open **Attack on Titan** (the series with "Volume" folders in your test
+  folder). Each volume folder shows as a row with its folder name ("Volume 2") and the file name
+  underneath. Send one: the confirm page shows "Volume 2", and **Back to the series** goes back to
+  Attack on Titan.
 - **T3:** tap a volume → **Send to Kindle?** → **Send to Kindle** → **Sent**, and **Back to the
   series** goes back to the same series. Note when the book appears in the library (about 2
   minutes for an EPUB).
